@@ -19,11 +19,18 @@
                         <div class="text-xs text-sand-500">baris item</div>
                     </div>
                     <div class="rounded-lg bg-white border border-sand-200 p-3 text-center">
-                        <div class="text-2xl font-semibold {{ $summary['items_tanpa_stok'] > 0 ? 'text-amber-700' : 'text-sand-400' }} tnum">{{ $summary['items_tanpa_stok'] }}</div>
-                        <div class="text-xs text-sand-500">item tanpa stok/batch</div>
+                        <div class="text-2xl font-semibold text-sand-800 tnum">{{ $summary['imported_items'] }}</div>
+                        <div class="text-xs text-sand-500">baris item (dari stok nyata)</div>
                     </div>
                 </div>
                 <ul class="mt-4 space-y-1.5 text-sm text-sand-700">
+                    <li class="flex justify-between"><span>Diabaikan — stok 0 (mungkin sudah buy-out / tak diproduksi di sistem)</span><span class="tnum font-medium {{ ($summary['skip_stok0'] ?? 0) > 0 ? 'text-amber-700' : '' }}">{{ ($summary['skip_stok0'] ?? 0) }} pcs</span></li>
+                    @if (($summary['skip_order_stok0'] ?? 0) > 0)
+                        <li class="flex justify-between"><span class="pl-3 text-sand-500">— pesanan yang seluruhnya tanpa stok (tak dibuat)</span><span class="tnum font-medium">{{ $summary['skip_order_stok0'] }}</span></li>
+                    @endif
+                    @if (($summary['melebihi_stok'] ?? 0) > 0)
+                        <li class="flex justify-between"><span>Tak dicatat — melebihi stok tersedia</span><span class="tnum font-medium text-amber-700">{{ $summary['melebihi_stok'] }} pcs</span></li>
+                    @endif
                     <li class="flex justify-between"><span>Dilewati — bukan produk kita (SKU tak dikenal)</span><span class="tnum font-medium">{{ $summary['skip_sku_tak_dikenal'] }}</span></li>
                     <li class="flex justify-between"><span>Dilewati — dibatalkan</span><span class="tnum font-medium">{{ $summary['skip_dibatalkan'] }}</span></li>
                     <li class="flex justify-between"><span>Dilewati — sudah pernah diimpor</span><span class="tnum font-medium">{{ $summary['skip_sudah_ada'] }}</span></li>

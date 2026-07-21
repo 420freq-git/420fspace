@@ -44,7 +44,8 @@ class MarketplaceImportService
 
         $summary = [
             'marketplace' => Marketplace::from($marketplace)->label(),
-            'imported_orders' => 0, 'imported_items' => 0, 'items_tanpa_stok' => 0,
+            'imported_orders' => 0, 'imported_items' => 0,
+            'skip_stok0' => 0, 'skip_order_stok0' => 0, 'melebihi_stok' => 0,
             'skip_dibatalkan' => 0, 'skip_sudah_ada' => 0, 'skip_sku_tak_dikenal' => 0,
             'sku_tak_dikenal' => [],
         ];
@@ -110,6 +111,7 @@ class MarketplaceImportService
                 'sumber' => 'import',
             ]);
 
+            $adaItem = false;
             foreach ($lines as $line) {
                 /** @var ProductSize $size */
                 $size = $line['size'];
@@ -121,15 +123,27 @@ class MarketplaceImportService
 
                 $result = $this->stock->allocate($product->brand_id, $product->id, $ukuran, $line['qty']);
 
+                // Guard: penjualan hanya sah bila menarik stok nyata dari sistem ini. Baris dengan
+                // stok 0 (mungkin sudah di-buy-out / tak pernah diproduksi lewat sistem) diabaikan;
+                // kelebihan di atas stok tersedia juga tidak dicatat (bukan penjualan yg terlacak).
                 foreach ($result['alloc'] as $a) {
                     $this->makeItem($order, $product, $a['batch']->id, $ukuran, $a['qty'], $diferd, $tm420, $first['tanggal'], $marketplace);
                     $summary['imported_items']++;
+                    $adaItem = true;
                 }
-                if ($result['remaining'] > 0) {
-                    $this->makeItem($order, $product, null, $ukuran, $result['remaining'], $diferd, $tm420, $first['tanggal'], $marketplace);
-                    $summary['imported_items']++;
-                    $summary['items_tanpa_stok'] += $result['remaining'];
+                if (empty($result['alloc'])) {
+                    $summary['skip_stok0'] += $line['qty'];
+                } elseif ($result['remaining'] > 0) {
+                    $summary['melebihi_stok'] += $result['remaining'];
                 }
+            }
+
+            // Pesanan yang seluruh barisnya tanpa stok tidak dibuat sama sekali.
+            if (! $adaItem) {
+                $order->delete();
+                $summary['skip_order_stok0']++;
+
+                return;
             }
             $summary['imported_orders']++;
         });
