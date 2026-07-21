@@ -64,8 +64,9 @@ class StokController extends Controller
                 $belumCair = $this->stock->soldUnsettledTotal($p->id, $u->value);
                 $reject = $this->stock->rejectTotal($p->id, $u->value);
                 $rejectArsip = $this->stock->rejectSelesaiTotal($p->id, $u->value);
+                $buyout = $this->stock->boughtOutTotal($p->id, $u->value);   // sudah jadi milik TM
 
-                $sisaSize = $terima - $sold;   // hanya barang yang sudah di tangan brand
+                $sisaSize = $terima - $sold - $buyout;   // stok jual di tangan brand, di luar yg di-buyout
                 $sizes[$u->value] = ['produced' => $prod, 'sold' => $sold, 'sisa' => $sisaSize];
 
                 $totProduced += $prod;

@@ -132,29 +132,62 @@ class SettlementController extends Controller
             'keterangan' => ['nullable', 'string', 'max:255'],
         ]);
 
-        DB::transaction(function () use ($data, $batch) {
+        // Buy-out punya aksi tersendiri (mengonsumsi stok) — jangan lewat form ledger generik.
+        if ($data['tipe'] === LedgerTipe::Buyout->value) {
+            return back()->with('error', 'Buy-out dilakukan lewat tombol "Buy-out sisa stok", bukan form ini.');
+        }
+
+        VendorLedger::create([
+            'brand_id' => $batch->brand_id,
+            'batch_id' => $batch->id,
+            'tanggal' => $data['tanggal'],
+            'tipe' => $data['tipe'],
+            'jumlah' => $data['jumlah'],
+            'keterangan' => $data['keterangan'] ?? null,
+        ]);
+
+        return back()->with('success', 'Entri pembayaran dicatat.');
+    }
+
+    /**
+     * Buy-out sisa stok batch di deadline. 420F membeli seluruh stok yang belum terjual senilai
+     * harga Diferd; barangnya JADI MILIK TM420 (keluar dari stok jual 420F). Uang mengalir
+     * TM420 → 420F → Diferd (kas 420F netral). Batch ditandai dibuyout sehingga sisa stoknya
+     * tidak lagi bisa dijual/di-FIFO dan hilang dari radar.
+     */
+    public function buyout(Request $request, Batch $batch)
+    {
+        if ($batch->dibuyout) {
+            return back()->with('error', 'Sisa stok batch ini sudah di-buy-out.');
+        }
+
+        $sisa = $this->settlement->sisaStok($batch);
+        if ($sisa['pcs'] <= 0) {
+            return back()->with('error', 'Tidak ada sisa stok untuk di-buy-out.');
+        }
+
+        DB::transaction(function () use ($batch, $sisa) {
+            // 420F → Diferd (bayar produksi stok sisa).
             VendorLedger::create([
                 'brand_id' => $batch->brand_id,
                 'batch_id' => $batch->id,
-                'tanggal' => $data['tanggal'],
-                'tipe' => $data['tipe'],
-                'jumlah' => $data['jumlah'],
-                'keterangan' => $data['keterangan'] ?? null,
+                'tanggal' => now(),
+                'tipe' => LedgerTipe::Buyout->value,
+                'jumlah' => $sisa['nilai'],
+                'keterangan' => 'Buy-out '.$sisa['pcs'].' pcs sisa stok (milik TM420)',
+            ]);
+            // TM420 → 420F (bayar buy-out). Kas 420F netral.
+            BrandLedger::create([
+                'brand_id' => $batch->brand_id,
+                'tanggal' => now(),
+                'jumlah' => $sisa['nilai'],
+                'keterangan' => 'Buy-out sisa stok '.$batch->nomor_batch.' (TM bayar 420F)',
             ]);
 
-            // Buy-out: TM420 bayar ke 420F, lalu 420F teruskan ke Diferd (VendorLedger di atas).
-            // Sisi TM dicatat sebagai BrandLedger supaya kas 420F NETRAL (masuk = keluar).
-            if ($data['tipe'] === LedgerTipe::Buyout->value) {
-                BrandLedger::create([
-                    'brand_id' => $batch->brand_id,
-                    'tanggal' => $data['tanggal'],
-                    'jumlah' => $data['jumlah'],
-                    'keterangan' => 'Buy-out sisa stok '.$batch->nomor_batch.' (TM bayar 420F)',
-                ]);
-            }
+            $batch->update(['dibuyout' => true, 'tgl_buyout' => now()]);
         });
 
-        return back()->with('success', 'Entri pembayaran dicatat.');
+        return back()->with('success', 'Buy-out '.$sisa['pcs'].' pcs (Rp '.number_format($sisa['nilai'], 0, ',', '.').') — stok jadi milik TM420 & keluar dari stok jual.');
     }
 
     public function destroyLedger(VendorLedger $ledger)
@@ -166,12 +199,13 @@ class SettlementController extends Controller
         $batch = $ledger->batch;
 
         DB::transaction(function () use ($ledger, $batch) {
-            // Hapus juga sisi TM (BrandLedger) bila ini entri buy-out, supaya kas tetap seimbang.
+            // Buy-out dibatalkan: hapus sisi TM (BrandLedger) & lepas flag agar stok kembali jual.
             if ($ledger->tipe === LedgerTipe::Buyout && $batch) {
                 BrandLedger::where('brand_id', $batch->brand_id)
                     ->where('jumlah', $ledger->jumlah)
                     ->where('keterangan', 'like', 'Buy-out sisa stok '.$batch->nomor_batch.'%')
                     ->latest('id')->limit(1)->delete();
+                $batch->update(['dibuyout' => false, 'tgl_buyout' => null]);
             }
             $ledger->delete();
         });

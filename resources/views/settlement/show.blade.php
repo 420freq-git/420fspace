@@ -86,10 +86,23 @@
                         <p class="text-sm text-sand-500">Fee 420F</p>
                         <p class="mt-1 text-xl font-semibold text-brand-700 tnum">{{ $fmt($summary['fee420f']) }}</p>
                     </div>
-                    <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
-                        <p class="text-sm text-sand-500">Nilai sisa stok</p>
-                        <p class="mt-1 text-xl font-semibold text-sand-900 tnum">{{ $fmt($summary['sisa_stok_value']) }}</p>
-                        <p class="mt-1 text-xs text-sand-400">dasar buy-out</p>
+                    <div class="rounded-xl border {{ $batch->dibuyout ? 'border-sand-200 bg-sand-50' : 'border-sand-200 bg-white' }} shadow-sm p-5">
+                        @if ($batch->dibuyout)
+                            <p class="text-sm text-sand-500">Sisa stok</p>
+                            <p class="mt-1 text-lg font-semibold text-sand-700">Sudah di-buy-out</p>
+                            <p class="mt-1 text-xs text-sand-400">jadi milik TM420 · {{ $batch->tgl_buyout?->format('d/m/Y') }}</p>
+                        @else
+                            <p class="text-sm text-sand-500">Nilai sisa stok</p>
+                            <p class="mt-1 text-xl font-semibold text-sand-900 tnum">{{ $fmt($summary['sisa_stok_value']) }}</p>
+                            <p class="mt-1 text-xs text-sand-400">dasar buy-out</p>
+                            @if ($isAdmin && $summary['sisa_stok_value'] > 0)
+                                <form method="POST" action="{{ route('settlement.buyout', $batch) }}" class="mt-3"
+                                      onsubmit="return confirm('Buy-out seluruh sisa stok senilai {{ $fmt($summary['sisa_stok_value']) }}? Stok jadi milik TM420 & keluar dari stok jual. Uang: TM → 420F → Diferd (kas 420F netral).');">
+                                    @csrf @method('PATCH')
+                                    <button type="submit" class="w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100">Buy-out sisa stok</button>
+                                </form>
+                            @endif
+                        @endif
                     </div>
                 </div>
             </div>
@@ -152,18 +165,15 @@
         {{-- Form catat (admin) --}}
         @if ($isAdmin)
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-6"
-                 x-data="{ tipe: 'pembayaran', jumlah: '', sisaStok: {{ (int) $summary['sisa_stok_value'] }},
-                           onTipe() { if (this.tipe === 'buyout') this.jumlah = this.sisaStok; } }">
-                <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">Catat pembayaran / buy-out</h2>
+                 x-data="{ tipe: 'pembayaran', jumlah: '' }">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">Catat pembayaran ke Diferd</h2>
                 <form method="POST" action="{{ route('settlement.ledger.store', $batch) }}" class="grid sm:grid-cols-4 gap-4 items-end">
                     @csrf
+                    <input type="hidden" name="tipe" value="pembayaran">
                     <div>
                         <label class="block text-xs font-medium text-sand-600">Tipe</label>
-                        <select name="tipe" x-model="tipe" @change="onTipe()" class="mt-1 block w-full rounded-lg border-sand-300 text-sm focus:border-brand-600 focus:ring-brand-600">
-                            @foreach (\App\Enums\LedgerTipe::cases() as $t)
-                                <option value="{{ $t->value }}">{{ $t->label() }}</option>
-                            @endforeach
-                        </select>
+                        <input type="text" value="Pembayaran" disabled class="mt-1 block w-full rounded-lg border-sand-200 bg-sand-50 text-sm text-sand-500">
+                        <p class="mt-1 text-[11px] text-sand-400">Buy-out &amp; deposit lewat tombolnya masing-masing.</p>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-sand-600">Jumlah</label>

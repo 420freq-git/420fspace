@@ -115,8 +115,37 @@ class StockService
      */
     public function availableInBatch(int $batchId, int $productId, string $ukuran): int
     {
+        // Batch yang sisa stoknya sudah di-buy-out (jadi milik TM420) tidak lagi punya stok jual.
+        if ($this->batchDibuyout($batchId)) {
+            return 0;
+        }
+
         return $this->receivedInBatch($batchId, $productId, $ukuran)
             - $this->soldInBatch($batchId, $productId, $ukuran);
+    }
+
+    /** @var array<int,bool>|null memo status buy-out per batch (per request) */
+    private ?array $buyoutMap = null;
+
+    private function batchDibuyout(int $batchId): bool
+    {
+        $this->buyoutMap ??= Batch::where('dibuyout', true)->pluck('dibuyout', 'id')->all();
+
+        return isset($this->buyoutMap[$batchId]);
+    }
+
+    /**
+     * Qty yang sudah di-buy-out untuk produk+ukuran lintas batch (received − sold pada batch
+     * yang sudah dibuyout). Dipakai halaman Stok agar stok jual tidak lagi menampilkannya.
+     */
+    public function boughtOutTotal(int $productId, string $ukuran): int
+    {
+        $total = 0;
+        foreach (array_keys($this->buyoutMap ??= Batch::where('dibuyout', true)->pluck('dibuyout', 'id')->all()) as $batchId) {
+            $total += max(0, $this->receivedInBatch($batchId, $productId, $ukuran) - $this->soldInBatch($batchId, $productId, $ukuran));
+        }
+
+        return $total;
     }
 
     /** Total diproduksi lintas batch untuk produk+ukuran. */

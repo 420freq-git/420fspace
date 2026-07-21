@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'brand_id', 'nomor_batch', 'vendor', 'tanggal_order', 'deadline', 'deadline_produksi',
     'jenis_order', 'type_payment', 'deposit_awal', 'deposit_rekonsiliasi', 'tgl_rekonsiliasi', 'status',
-    'diajukan_oleh', 'disetujui_oleh', 'tgl_approval', 'catatan_approval',
+    'diajukan_oleh', 'disetujui_oleh', 'tgl_approval', 'catatan_approval', 'dibuyout', 'tgl_buyout',
 ])]
 class Batch extends Model
 {
@@ -38,6 +38,8 @@ class Batch extends Model
             'deposit_rekonsiliasi' => 'boolean',
             'tgl_rekonsiliasi' => 'date',
             'tgl_approval' => 'datetime',
+            'dibuyout' => 'boolean',
+            'tgl_buyout' => 'datetime',
         ];
     }
 

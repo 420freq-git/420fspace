@@ -176,6 +176,7 @@ Route::middleware('auth')->group(function () {
         Route::post('settlement/{batch}/ledger', [SettlementController::class, 'storeLedger'])->name('settlement.ledger.store');
         Route::delete('settlement/ledger/{ledger}', [SettlementController::class, 'destroyLedger'])->name('settlement.ledger.destroy');
         Route::patch('settlement/{batch}/status', [SettlementController::class, 'markStatus'])->name('settlement.status');
+        Route::patch('settlement/{batch}/buyout', [SettlementController::class, 'buyout'])->name('settlement.buyout');
         Route::patch('settlement/deposit/selesaikan', [SettlementController::class, 'selesaikanDeposit'])->name('settlement.deposit.selesaikan');
         Route::patch('settlement/{batch}/rekonsiliasi', [SettlementController::class, 'rekonsiliasiDeposit'])->name('settlement.rekonsiliasi');
     });
