@@ -31,11 +31,16 @@ class CashflowController extends Controller
         $modalDiferd = $this->settlement->depositMengendap();
         $dibayarDiferd = $pembayaranDiferd + $buyoutDiferd;
         $ditransferTM = (int) BrandLedger::sum('jumlah');
+        // Transfer khusus buy-out (TM bayar 420F utk stok sisa) dipisah dari transfer penjualan,
+        // supaya "sisa tagihan penjualan" tidak ikut terpengaruh. Kas 420F tetap netral karena
+        // buy-out masuk (BrandLedger) = keluar (VendorLedger buyout).
+        $transferBuyout = (int) BrandLedger::where('keterangan', 'like', 'Buy-out sisa stok%')->sum('jumlah');
+        $ditransferTMPenjualan = $ditransferTM - $transferBuyout;
 
         return view('cashflow.index', [
             'tagihanTM' => $tagihanTM,
-            'ditransferTM' => $ditransferTM,
-            'sisaTagihanTM' => $tagihanTM - $ditransferTM,
+            'ditransferTM' => $ditransferTMPenjualan,
+            'sisaTagihanTM' => $tagihanTM - $ditransferTMPenjualan,
             'kewajibanDiferd' => $kewajibanDiferd,
             'pembayaranDiferd' => $pembayaranDiferd,
             'modalDiferd' => $modalDiferd,

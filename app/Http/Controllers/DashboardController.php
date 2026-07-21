@@ -172,7 +172,9 @@ class DashboardController extends Controller
 
         if (in_array($user->role, [Role::Tm420, Role::Voojah], true)) {
             $tagihan = (int) $sold()->whereNotNull('harga_tm420')->sum(DB::raw('qty * harga_tm420'));
-            $ditransfer = (int) BrandLedger::where('brand_id', $brandId)->sum('jumlah');
+            // Kecualikan transfer buy-out (bukan pembayaran penjualan) dari sisa tagihan penjualan.
+            $ditransfer = (int) BrandLedger::where('brand_id', $brandId)
+                ->where('keterangan', 'not like', 'Buy-out sisa stok%')->sum('jumlah');
             $sisaTagihan = $tagihan - $ditransfer;
 
             $money = ['tagihan' => $tagihan, 'ditransfer' => $ditransfer, 'sisa' => $sisaTagihan];
@@ -209,12 +211,14 @@ class DashboardController extends Controller
             $modalDiferd = app(\App\Services\SettlementService::class)->depositMengendap();
             $dibayarDiferd = $pembayaranDiferd + (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah');
             $ditransferTM = (int) BrandLedger::sum('jumlah');
-            $posisiKas = $ditransferTM - $dibayarDiferd;
+            $posisiKas = $ditransferTM - $dibayarDiferd;   // semua transfer − semua bayar → netral thd buy-out
+            // Sisa tagihan penjualan pakai transfer non-buy-out saja.
+            $ditransferPenjualan = $ditransferTM - (int) BrandLedger::where('keterangan', 'like', 'Buy-out sisa stok%')->sum('jumlah');
 
             $money = [
                 'posisiKas' => $posisiKas, 'fee' => $fee,
                 'sisaDiferd' => $kewajibanDiferd - $pembayaranDiferd,
-                'sisaTM' => $tagihanTM - $ditransferTM,
+                'sisaTM' => $tagihanTM - $ditransferPenjualan,
                 'modal' => $modalDiferd,
             ];
             $cards = [
