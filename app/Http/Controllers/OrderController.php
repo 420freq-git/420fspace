@@ -146,7 +146,7 @@ class OrderController extends Controller
                         'marketplace' => $marketplace->value,
                         'nomor_pesanan' => $data['nomor_pesanan'],
                         'harga_diferd' => $product->effectiveDiferd($tier) ?? 0,
-                        'harga_tm420' => $product->effectiveTm420($tier),
+                        'harga_tm420' => $product->hargaTagihan($tier),
                     ]);
                 }
             }

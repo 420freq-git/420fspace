@@ -117,7 +117,7 @@ class MarketplaceImportService
                 $ukuran = $size->ukuran->value;
                 $tier = SizeTier::forUkuran($ukuran);
                 $diferd = $product->effectiveDiferd($tier) ?? 0;
-                $tm420 = $product->effectiveTm420($tier);
+                $tm420 = $product->hargaTagihan($tier);   // VOOJAH ditagih harga Diferd
 
                 $result = $this->stock->allocate($product->brand_id, $product->id, $ukuran, $line['qty']);
 

@@ -122,7 +122,12 @@
       "Bash(\"C:/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysql.exe\" -u root 420frequency -e \"SHOW COLUMNS FROM invoices;\")",
       "Bash(awk '{print $1}')",
       "Bash(git add *)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(\"C:/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysql.exe\" -u root 420frequency -e \"SHOW COLUMNS FROM category_prices;\")",
+      "Bash(sed -n '/private function saveSizeItems/,/^    }/p' app/Http/Controllers/PurchaseOrderController.php)",
+      "Bash(sed -n '/private function validated/,/^    }/p' app/Http/Controllers/PurchaseOrderController.php)",
+      "Bash(sed -n '/public function terimaRetur/,/^    }/p' app/Http/Controllers/MonitoringController.php)",
+      "Bash(sed -n '/public function tolakRetur/,/^    }/p' app/Http/Controllers/MonitoringController.php)"
     ]
   }
 }

@@ -89,4 +89,19 @@ class Product extends Model
 
         return $ov ?? $this->category?->priceFor($tier)?->harga_tm420;
     }
+
+    /**
+     * Harga yang DITAGIH 420F ke brand pemilik pesanan (disimpan sebagai snapshot harga_tm420 di sale).
+     *
+     * Brand milik sendiri (VOOJAH) ditagih sebesar harga Diferd — pass-through biaya produksi tanpa
+     * markup, jadi fee 420F dari brand sendiri = 0 (margin retail diambil di marketplace, di luar
+     * sistem). Brand eksternal (TM420) ditagih harga_tm420 seperti biasa. Dengan menyimpan nilai ini
+     * ke kolom harga_tm420, seluruh hitungan invoice/fee/settlement/cashflow otomatis benar.
+     */
+    public function hargaTagihan(SizeTier $tier): ?int
+    {
+        return $this->brand?->tipe === \App\Enums\BrandType::MilikSendiri
+            ? $this->effectiveDiferd($tier)
+            : $this->effectiveTm420($tier);
+    }
 }
