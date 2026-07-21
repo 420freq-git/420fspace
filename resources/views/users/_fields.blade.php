@@ -14,6 +14,14 @@
         @error('email') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
     </div>
 
+    <div>
+        <label class="block text-sm font-medium text-sand-700">No. HP (WhatsApp) <span class="text-sand-400 font-normal">(opsional)</span></label>
+        <input type="text" name="no_hp" value="{{ old('no_hp', $user->no_hp) }}" placeholder="08xxxxxxxxxx"
+               class="mt-1 block w-full rounded-lg border-sand-300 text-sm focus:border-brand-600 focus:ring-brand-600 tnum">
+        <p class="mt-1 text-xs text-sand-400">Untuk pengingat WhatsApp. Kosongkan bila tak ingin dikirimi.</p>
+        @error('no_hp') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+    </div>
+
     <div class="grid sm:grid-cols-2 gap-5">
         <div>
             <label class="block text-sm font-medium text-sand-700">Peran</label>

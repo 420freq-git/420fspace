@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    // Notifikasi WhatsApp via Fonnte. Isi FONNTE_TOKEN di .env untuk mengaktifkan pengiriman.
+    'fonnte' => [
+        'token' => env('FONNTE_TOKEN'),
+    ],
+
 ];

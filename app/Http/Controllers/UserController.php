@@ -81,6 +81,7 @@ class UserController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user?->id)],
+            'no_hp' => ['nullable', 'string', 'max:20'],
             'role' => ['required', new Enum(Role::class)],
             'brand_id' => [
                 Rule::requiredIf(fn () => in_array($request->input('role'), [Role::Tm420->value, Role::Voojah->value], true)),
