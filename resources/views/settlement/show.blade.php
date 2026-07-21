@@ -28,8 +28,37 @@
 
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-        {{-- Rincian saldo --}}
-        <div class="grid md:grid-cols-2 gap-6">
+        {{-- Batch CASH (beli putus di muka) --}}
+        @if (! empty($summary['cash']))
+            <div class="rounded-xl border {{ $summary['cash_dibayar'] ? 'border-indigo-200 bg-indigo-50' : 'border-amber-200 bg-amber-50' }} shadow-sm p-6">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-sm font-semibold text-indigo-900">Batch pembayaran CASH (beli putus)</h2>
+                        @if ($summary['cash_dibayar'])
+                            <p class="mt-1 text-sm text-indigo-700">Sudah dibayar penuh di muka · {{ $batch->tgl_cash?->format('d/m/Y') }}.</p>
+                            <dl class="mt-3 grid sm:grid-cols-3 gap-3 text-sm">
+                                <div><dt class="text-xs text-sand-500">Diferd dibayar</dt><dd class="tnum font-semibold text-sand-900">{{ $fmt($summary['kewajiban']) }}</dd></div>
+                                <div><dt class="text-xs text-sand-500">TM ke 420F</dt><dd class="tnum font-semibold text-sand-900">{{ $fmt($summary['cash_tm']) }}</dd></div>
+                                <div><dt class="text-xs text-sand-500">Margin 420F</dt><dd class="tnum font-semibold text-brand-700">{{ $fmt($summary['fee420f']) }}</dd></div>
+                            </dl>
+                            <p class="mt-2 text-xs text-indigo-600">Stok jadi milik TM420 — penjualannya tidak lagi menambah hak Diferd.</p>
+                        @else
+                            <p class="mt-1 text-sm text-amber-800">Belum dibayar. Bayar penuh di muka: TM → 420F → Diferd, 420F ambil margin.</p>
+                        @endif
+                    </div>
+                    @if ($isAdmin && ! $summary['cash_dibayar'] && $summary['kewajiban'] > 0)
+                        <form method="POST" action="{{ route('settlement.bayar-cash', $batch) }}"
+                              onsubmit="return confirm('Bayar cash batch ini di muka? Diferd {{ $fmt($summary['kewajiban']) }}, TM ke 420F {{ $fmt($summary['cash_tm']) }}. Tak bisa dibatalkan dari sini.');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Bayar cash di muka</button>
+                        </form>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        {{-- Rincian saldo (konsinyasi) --}}
+        <div class="grid md:grid-cols-2 gap-6 {{ ! empty($summary['cash']) ? 'hidden' : '' }}">
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-6">
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">Hak vendor — barang terjual</h2>
                 <dl class="space-y-2.5 text-sm">

@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'brand_id', 'nomor_batch', 'vendor', 'tanggal_order', 'deadline', 'deadline_produksi',
     'jenis_order', 'type_payment', 'deposit_awal', 'deposit_rekonsiliasi', 'tgl_rekonsiliasi', 'status',
     'diajukan_oleh', 'disetujui_oleh', 'tgl_approval', 'catatan_approval', 'dibuyout', 'tgl_buyout',
+    'cash_dibayar', 'tgl_cash',
 ])]
 class Batch extends Model
 {
@@ -40,12 +41,19 @@ class Batch extends Model
             'tgl_approval' => 'datetime',
             'dibuyout' => 'boolean',
             'tgl_buyout' => 'datetime',
+            'cash_dibayar' => 'boolean',
+            'tgl_cash' => 'datetime',
         ];
     }
 
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);
+    }
+
+    public function isCash(): bool
+    {
+        return $this->type_payment === \App\Enums\TypePayment::Cash;
     }
 
     public function pengaju(): BelongsTo

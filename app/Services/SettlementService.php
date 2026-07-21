@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\SizeTier;
 use App\Models\Batch;
+use App\Models\BrandLedger;
 use App\Models\Penarikan;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -133,6 +134,64 @@ class SettlementService
         return $this->kewajiban($batch->id) - $this->terbayar($batch->id);
     }
 
+    /**
+     * Nilai batch untuk pembayaran CASH (beli putus di muka), dari seluruh qty PO:
+     *  - diferd: yang 420F bayar ke Diferd
+     *  - tm420 : yang TM bayar ke 420F (sesuai harga pihak; VOOJAH = diferd)
+     *  - fee   : margin 420F (tm420 − diferd)
+     * @return array{diferd:int, tm420:int, fee:int, pcs:int}
+     */
+    public function cashTotals(Batch $batch): array
+    {
+        $pos = PurchaseOrder::where('batch_id', $batch->id)->with(['product.category.prices', 'sizeItems'])->get();
+
+        $diferd = $tm420 = $pcs = 0;
+        foreach ($pos as $po) {
+            foreach ($po->sizeItems as $si) {
+                $tier = SizeTier::forUkuran($si->ukuran->value);
+                $qty = (int) $si->qty;
+                $pcs += $qty;
+                $diferd += $qty * (int) ($po->product->effectiveDiferd($tier) ?? 0);
+                $tm420 += $qty * (int) ($po->product->hargaTagihan($tier) ?? 0);
+            }
+        }
+
+        return ['diferd' => $diferd, 'tm420' => $tm420, 'fee' => $tm420 - $diferd, 'pcs' => $pcs];
+    }
+
+    /**
+     * Jalankan pembayaran cash batch (beli putus di muka): buat ledger Diferd (cash) + BrandLedger
+     * (TM bayar 420F), tandai batch cash_dibayar. Idempoten — tidak melakukan apa-apa bila bukan
+     * cash, sudah dibayar, atau belum ada PO. Return totals bila berhasil, null bila dilewati.
+     *
+     * @return array{diferd:int, tm420:int, fee:int, pcs:int}|null
+     */
+    public function prosesCashBatch(Batch $batch): ?array
+    {
+        if (! $batch->isCash() || $batch->cash_dibayar) {
+            return null;
+        }
+        $t = $this->cashTotals($batch);
+        if ($t['pcs'] <= 0) {
+            return null;
+        }
+
+        DB::transaction(function () use ($batch, $t) {
+            VendorLedger::create([
+                'brand_id' => $batch->brand_id, 'batch_id' => $batch->id, 'tanggal' => now(),
+                'tipe' => \App\Enums\LedgerTipe::Cash->value, 'jumlah' => $t['diferd'],
+                'keterangan' => 'Cash batch '.$batch->nomor_batch.' — bayar Diferd di muka ('.$t['pcs'].' pcs)',
+            ]);
+            BrandLedger::create([
+                'brand_id' => $batch->brand_id, 'tanggal' => now(), 'jumlah' => $t['tm420'],
+                'keterangan' => 'Cash batch '.$batch->nomor_batch.' (TM bayar 420F di muka)',
+            ]);
+            $batch->update(['cash_dibayar' => true, 'tgl_cash' => now()]);
+        });
+
+        return $t;
+    }
+
     /** Nilai sisa stok belum terjual di batch ini (× harga Diferd) — dasar buy-out. */
     public function sisaStokValue(Batch $batch): int
     {
@@ -184,13 +243,39 @@ class SettlementService
     /** Ringkasan lengkap satu batch. */
     public function batchSummary(Batch $batch): array
     {
+        $ledgerDeposit = (int) VendorLedger::where('batch_id', $batch->id)->where('tipe', 'deposit')->sum('jumlah');
+
+        // Batch CASH: settlement konsinyasi tak berlaku — hak Diferd = dibayar (cash), saldo 0.
+        if ($batch->isCash()) {
+            $cash = $this->cashTotals($batch);
+            $terbayarCash = (int) VendorLedger::where('batch_id', $batch->id)->where('tipe', 'cash')->sum('jumlah');
+
+            return [
+                'cash' => true,
+                'cash_dibayar' => (bool) $batch->cash_dibayar,
+                'kewajiban' => $cash['diferd'],
+                'terbayar' => $terbayarCash,
+                'pembayaran' => $terbayarCash,
+                'penarikan' => 0,
+                'saldo' => $batch->cash_dibayar ? 0 : $cash['diferd'],
+                'deposit' => (int) $batch->deposit_awal,
+                'ledger_deposit' => $ledgerDeposit,
+                'modal' => $this->modalProduksi($batch),
+                'rekonsiliasi' => (bool) $batch->deposit_rekonsiliasi,
+                'buyout' => 0,
+                'fee420f' => $cash['fee'],
+                'sisa_stok_value' => 0,
+                'cash_tm' => $cash['tm420'],
+            ];
+        }
+
         $kewajiban = $this->kewajiban($batch->id);
         $terbayar = $this->pembayaranLedger($batch->id);   // sudah termasuk hasil penarikan
         $penarikan = $this->penarikanBatch($batch->id);
         $ledger = $terbayar - $penarikan;                  // sisanya = entri manual 420F
-        $ledgerDeposit = (int) VendorLedger::where('batch_id', $batch->id)->where('tipe', 'deposit')->sum('jumlah');
 
         return [
+            'cash' => false,
             'kewajiban' => $kewajiban,
             'terbayar' => $terbayar,
             'pembayaran' => $ledger,

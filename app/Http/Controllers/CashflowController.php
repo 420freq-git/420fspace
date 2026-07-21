@@ -17,25 +17,31 @@ class CashflowController extends Controller
 
     public function index()
     {
-        $lunas = fn () => Sale::whereHas('order', fn ($o) => $o->where('status', 'lunas'))->whereNotNull('harga_tm420');
+        // Konsinyasi saja (batch cash sudah lunas di muka & dikecualikan).
+        $lunas = fn () => Sale::consignment()->whereHas('order', fn ($o) => $o->where('status', 'lunas'))->whereNotNull('harga_tm420');
 
         $tagihanTM = (int) $lunas()->sum(DB::raw('qty * harga_tm420'));
-        $fee = (int) $lunas()->sum(DB::raw('qty * (harga_tm420 - harga_diferd)'));
+        $feeKonsinyasi = (int) $lunas()->sum(DB::raw('qty * (harga_tm420 - harga_diferd)'));
+        // Fee 420F dari batch cash (margin di muka) — dari BrandLedger cash − VendorLedger cash.
+        $cashTm = (int) BrandLedger::where('keterangan', 'like', 'Cash batch%')->sum('jumlah');
+        $cashDiferd = (int) VendorLedger::where('tipe', 'cash')->sum('jumlah');
+        $fee = $feeKonsinyasi + ($cashTm - $cashDiferd);
+
         $penarikanCair = (int) Penarikan::where('status', 'disetujui')->sum('jumlah');
-        $kewajibanDiferd = (int) Sale::sold()->sum(DB::raw('qty * harga_diferd'));
+        $kewajibanDiferd = (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
         // whereNull penarikan_id: baris hasil pembekuan penarikan sudah terwakili $penarikanCair —
         // tanpa filter ini uang penarikan terhitung dua kali.
         $pembayaranDiferd = (int) VendorLedger::where('tipe', 'pembayaran')->whereNull('penarikan_id')->sum('jumlah') + $penarikanCair;
         $buyoutDiferd = (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah');
         // Modal (deposit) yang masih mengendap di vendor — global, di luar kas 420F.
         $modalDiferd = $this->settlement->depositMengendap();
-        $dibayarDiferd = $pembayaranDiferd + $buyoutDiferd;
+        // Uang keluar ke Diferd = pembayaran konsinyasi + buyout + cash di muka.
+        $dibayarDiferd = $pembayaranDiferd + $buyoutDiferd + $cashDiferd;
         $ditransferTM = (int) BrandLedger::sum('jumlah');
-        // Transfer khusus buy-out (TM bayar 420F utk stok sisa) dipisah dari transfer penjualan,
-        // supaya "sisa tagihan penjualan" tidak ikut terpengaruh. Kas 420F tetap netral karena
-        // buy-out masuk (BrandLedger) = keluar (VendorLedger buyout).
-        $transferBuyout = (int) BrandLedger::where('keterangan', 'like', 'Buy-out sisa stok%')->sum('jumlah');
-        $ditransferTMPenjualan = $ditransferTM - $transferBuyout;
+        // Transfer buy-out & cash (TM bayar 420F di muka) dipisah dari transfer penjualan konsinyasi.
+        $transferKhusus = (int) BrandLedger::where('keterangan', 'like', 'Buy-out sisa stok%')
+            ->orWhere('keterangan', 'like', 'Cash batch%')->sum('jumlah');
+        $ditransferTMPenjualan = $ditransferTM - $transferKhusus;
 
         return view('cashflow.index', [
             'tagihanTM' => $tagihanTM,

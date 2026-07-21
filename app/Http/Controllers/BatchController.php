@@ -77,7 +77,12 @@ class BatchController extends Controller
             'catatan_approval' => null,
         ]);
 
-        return back()->with('success', 'Batch disetujui & diteruskan ke vendor.');
+        // Batch cash: bayar penuh di muka begitu disetujui (TM→420F→Diferd, 420F ambil margin).
+        $cash = app(\App\Services\SettlementService::class)->prosesCashBatch($batch);
+
+        return back()->with('success', $cash
+            ? 'Batch cash disetujui & dibayar di muka (Diferd Rp '.number_format($cash['diferd'], 0, ',', '.').').'
+            : 'Batch disetujui & diteruskan ke vendor.');
     }
 
     public function reject(Request $request, Batch $batch)

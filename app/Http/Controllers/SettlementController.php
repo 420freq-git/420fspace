@@ -150,6 +150,29 @@ class SettlementController extends Controller
     }
 
     /**
+     * Pembayaran CASH batch (beli putus di muka). Dipanggil saat batch cash disetujui, atau manual.
+     * TM bayar 420F penuh (PO × tm420), 420F bayar Diferd penuh (PO × diferd), 420F ambil margin.
+     * Setelah ini batch lunas — penjualannya tak menambah hak Diferd (lihat Sale::consignment()).
+     */
+    public function bayarCash(Request $request, Batch $batch)
+    {
+        if (! $batch->isCash()) {
+            return back()->with('error', 'Batch ini bukan tipe pembayaran cash.');
+        }
+        if ($batch->cash_dibayar) {
+            return back()->with('error', 'Batch cash ini sudah dibayar di muka.');
+        }
+
+        $t = $this->settlement->prosesCashBatch($batch);
+        if ($t === null) {
+            return back()->with('error', 'Batch belum punya PO — tidak ada yang dibayar.');
+        }
+
+        return back()->with('success', 'Batch cash dibayar di muka: Diferd Rp '.number_format($t['diferd'], 0, ',', '.')
+            .', TM ke 420F Rp '.number_format($t['tm420'], 0, ',', '.').', margin 420F Rp '.number_format($t['fee'], 0, ',', '.').'.');
+    }
+
+    /**
      * Buy-out sisa stok batch di deadline. 420F membeli seluruh stok yang belum terjual senilai
      * harga Diferd; barangnya JADI MILIK TM420 (keluar dari stok jual 420F). Uang mengalir
      * TM420 → 420F → Diferd (kas 420F netral). Batch ditandai dibuyout sehingga sisa stoknya

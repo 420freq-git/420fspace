@@ -65,6 +65,16 @@ class Sale extends Model
         });
     }
 
+    /**
+     * Hanya penjualan KONSINYASI (batch termin atau tanpa batch) — untuk hitungan hak Diferd,
+     * tagihan TM, & fee. Penjualan dari batch CASH dikecualikan karena sudah lunas di muka
+     * (beli putus): Diferd sudah dibayar penuh & TM sudah bayar 420F saat batch disetujui.
+     */
+    public function scopeConsignment($query)
+    {
+        return $query->whereDoesntHave('batch', fn ($b) => $b->where('type_payment', 'cash'));
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

@@ -156,7 +156,9 @@ class PenarikanController extends Controller
 
     private function hakGlobal(): int
     {
-        return (int) Sale::sold()->sum(DB::raw('qty * harga_diferd'));
+        // Hanya penjualan konsinyasi. Batch cash sudah dibayar penuh di muka (ledger tipe 'cash'),
+        // jadi penjualannya tidak menambah hak yang bisa ditarik — mencegah dobel bayar.
+        return (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
     }
 
     /**

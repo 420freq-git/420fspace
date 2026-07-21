@@ -74,6 +74,18 @@ class SaldoController extends Controller
             ]);
         }
 
+        // KELUAR — pembayaran cash batch di muka (420F → Diferd).
+        foreach (VendorLedger::where('tipe', 'cash')->get() as $v) {
+            $moves->push([
+                'tanggal' => $v->tanggal,
+                'urut' => $v->created_at,
+                'arah' => 'keluar',
+                'jumlah' => (int) $v->jumlah,
+                'label' => 'Bayar cash Diferd (di muka)',
+                'ket' => $v->keterangan,
+            ]);
+        }
+
         // Urutkan kronologis, lalu hitung saldo berjalan.
         $moves = $moves->sortBy([
             fn ($a, $b) => $a['tanggal'] <=> $b['tanggal'],

@@ -185,7 +185,8 @@ class DashboardController extends Controller
                 $this->card('Sisa stok siap jual', $pcs($totalSisa), 'stok brand tersisa', self::ICON_STOCK),
             ];
         } elseif ($user->role === Role::Diferd) {
-            $hak = (int) Sale::sold()->sum(DB::raw('qty * harga_diferd'));
+            // Konsinyasi saja — batch cash sudah lunas di muka, tak menambah hak berjalan.
+            $hak = (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
             // whereNull penarikan_id: baris beku hasil penarikan sudah terwakili totalnya sendiri.
             $terbayar = (int) VendorLedger::where('tipe', 'pembayaran')->whereNull('penarikan_id')->sum('jumlah')
                 + (int) \App\Models\Penarikan::where('status', 'disetujui')->sum('jumlah');
@@ -200,18 +201,20 @@ class DashboardController extends Controller
                 $this->card('Batch aktif', (string) $batchAktif, 'sedang dikerjakan', self::ICON_BATCH),
             ];
         } else {
-            $lunas = fn () => Sale::whereHas('order', fn ($o) => $o->where('status', 'lunas'))->whereNotNull('harga_tm420');
+            $lunas = fn () => Sale::consignment()->whereHas('order', fn ($o) => $o->where('status', 'lunas'))->whereNotNull('harga_tm420');
             $tagihanTM = (int) $lunas()->sum(DB::raw('qty * harga_tm420'));
-            $fee = (int) $lunas()->sum(DB::raw('qty * (harga_tm420 - harga_diferd)'));
+            $cashTm = (int) BrandLedger::where('keterangan', 'like', 'Cash batch%')->sum('jumlah');
+            $cashDiferd = (int) VendorLedger::where('tipe', 'cash')->sum('jumlah');
+            $fee = (int) $lunas()->sum(DB::raw('qty * (harga_tm420 - harga_diferd)')) + ($cashTm - $cashDiferd);
             $penarikanCair = (int) \App\Models\Penarikan::where('status', 'disetujui')->sum('jumlah');
-            $kewajibanDiferd = (int) Sale::sold()->sum(DB::raw('qty * harga_diferd'));
+            $kewajibanDiferd = (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
             // whereNull penarikan_id: baris beku hasil penarikan sudah terwakili $penarikanCair.
             $pembayaranDiferd = (int) VendorLedger::where('tipe', 'pembayaran')->whereNull('penarikan_id')->sum('jumlah') + $penarikanCair;
             // Modal (deposit) yang masih mengendap di vendor — global, di luar kas 420F.
             $modalDiferd = app(\App\Services\SettlementService::class)->depositMengendap();
-            $dibayarDiferd = $pembayaranDiferd + (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah');
+            $dibayarDiferd = $pembayaranDiferd + (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah') + $cashDiferd;
             $ditransferTM = (int) BrandLedger::sum('jumlah');
-            $posisiKas = $ditransferTM - $dibayarDiferd;   // semua transfer − semua bayar → netral thd buy-out
+            $posisiKas = $ditransferTM - $dibayarDiferd;   // semua transfer − semua bayar (incl cash) → margin cash tercermin
             // Sisa tagihan penjualan pakai transfer non-buy-out saja.
             $ditransferPenjualan = $ditransferTM - (int) BrandLedger::where('keterangan', 'like', 'Buy-out sisa stok%')->sum('jumlah');
 
