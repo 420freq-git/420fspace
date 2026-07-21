@@ -24,6 +24,8 @@
              'icon' => 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'],
             ['label' => 'Pengiriman', 'route' => 'pengiriman.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah, Role::Diferd],
              'icon' => 'M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-6m0 0v-9.75m0 9.75H8.25m6-9.75H4.5m0 0V6.108c0-1.135.845-2.098 1.976-2.192a48.424 48.424 0 011.123-.08M14.25 8.25V6.108'],
+            ['label' => 'Radar deadline', 'route' => 'radar.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
+             'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
         ]],
         ['title' => 'Penjualan', 'items' => [
             ['label' => 'Pesanan', 'route' => 'orders.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],

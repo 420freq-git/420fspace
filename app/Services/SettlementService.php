@@ -136,6 +136,16 @@ class SettlementService
     /** Nilai sisa stok belum terjual di batch ini (× harga Diferd) — dasar buy-out. */
     public function sisaStokValue(Batch $batch): int
     {
+        return $this->sisaStok($batch)['nilai'];
+    }
+
+    /**
+     * Sisa stok belum terjual di batch: jumlah pcs & nilainya (× harga Diferd).
+     * Nilai = dasar/paparan buy-out kalau stok ini tak laku sampai deadline.
+     * @return array{pcs:int, nilai:int}
+     */
+    public function sisaStok(Batch $batch): array
+    {
         $pos = PurchaseOrder::where('batch_id', $batch->id)->with('sizeItems')->get();
 
         $combos = [];
@@ -149,14 +159,14 @@ class SettlementService
         }
 
         if (empty($combos)) {
-            return 0;
+            return ['pcs' => 0, 'nilai' => 0];
         }
 
         $products = Product::with('category.prices')
             ->whereIn('id', array_unique(array_column($combos, 'product_id')))
             ->get()->keyBy('id');
 
-        $value = 0;
+        $pcs = 0; $nilai = 0;
         foreach ($combos as $c) {
             $available = $this->stock->availableInBatch($batch->id, $c['product_id'], $c['ukuran']);
             if ($available <= 0) {
@@ -164,10 +174,11 @@ class SettlementService
             }
             $product = $products->get($c['product_id']);
             $diferd = $product?->effectiveDiferd(SizeTier::forUkuran($c['ukuran'])) ?? 0;
-            $value += $available * $diferd;
+            $pcs += $available;
+            $nilai += $available * $diferd;
         }
 
-        return $value;
+        return ['pcs' => $pcs, 'nilai' => $nilai];
     }
 
     /** Ringkasan lengkap satu batch. */

@@ -51,6 +51,9 @@ Route::middleware('auth')->group(function () {
     // Dashboard monitoring produksi — semua role (TM420 discope ke brand-nya)
     Route::get('monitoring-produksi', [MonitoringProduksiController::class, 'index'])->name('monitoring-produksi.index');
 
+    // Radar deadline & paparan buy-out — 420F & brand (discope). Vendor tak perlu (bukan risikonya).
+    Route::middleware('role:420f,tm420,voojah')->get('radar-deadline', [\App\Http\Controllers\RadarController::class, 'index'])->name('radar.index');
+
     // Pengiriman / Surat Jalan — lihat semua (scoped); buat: 420F & Diferd; terima: 420F
     Route::get('pengiriman', [PengirimanController::class, 'index'])->name('pengiriman.index');
     Route::middleware('role:420f,difred')->group(function () {
