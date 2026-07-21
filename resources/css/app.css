@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        @apply bg-sand-50 text-sand-800;
+    }
+}
+
+@layer utilities {
+    .tnum {
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+[x-cloak] {
+    display: none !important;
+}
