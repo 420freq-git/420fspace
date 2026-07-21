@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Role;
 use App\Models\ImportLog;
 use App\Services\MarketplaceImportService;
 use Illuminate\Http\Request;

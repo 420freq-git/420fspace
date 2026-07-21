@@ -57,7 +57,8 @@
                                 <th class="px-5 py-3 font-semibold">Artikel</th>
                                 <th class="px-5 py-3 font-semibold">Brand</th>
                                 <th class="px-5 py-3 font-semibold">Kategori</th>
-                                <th class="px-5 py-3 font-semibold text-right">Harga S–XL (Diferd → TM420)</th>
+                                @php $lihatDiferd = auth()->user()->bolehLihatHargaDiferd(); @endphp
+                                <th class="px-5 py-3 font-semibold text-right">{{ $lihatDiferd ? 'Harga S–XL (Diferd → TM420)' : 'Harga S–XL' }}</th>
                                 <th class="px-5 py-3 font-semibold text-center">Status</th>
                                 <th class="px-5 py-3 font-semibold text-right">Aksi</th>
                             </tr>
@@ -76,8 +77,10 @@
                                     <td class="px-5 py-3.5 text-right">
                                         @php $d = $product->effectiveDiferd($tierSXL); $t = $product->effectiveTm420($tierSXL); @endphp
                                         <span class="tnum text-sand-800">
-                                            {{ $d !== null ? 'Rp '.number_format($d, 0, ',', '.') : '—' }}
-                                            <span class="text-sand-400">→</span>
+                                            @if ($lihatDiferd)
+                                                {{ $d !== null ? 'Rp '.number_format($d, 0, ',', '.') : '—' }}
+                                                <span class="text-sand-400">→</span>
+                                            @endif
                                             {{ $t !== null ? 'Rp '.number_format($t, 0, ',', '.') : '—' }}
                                         </span>
                                         @if ($product->hasOverride())

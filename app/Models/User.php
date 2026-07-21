@@ -47,4 +47,13 @@ class User extends Authenticatable
     {
         return $this->role === Role::Admin;
     }
+
+    /**
+     * Boleh melihat harga Diferd (biaya 420F ke vendor)? Disembunyikan dari brand eksternal
+     * (TM420) supaya margin 420F tidak terungkap. Admin, vendor, & brand internal (VOOJAH) boleh.
+     */
+    public function bolehLihatHargaDiferd(): bool
+    {
+        return $this->role !== Role::Tm420;
+    }
 }

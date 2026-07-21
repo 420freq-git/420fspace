@@ -75,7 +75,7 @@ class MonitoringController extends Controller
         $order->update([
             'status' => 'retur',
             'tgl_retur' => now(),
-            'alasan_batal' => $data['alasan_batal'] ?: 'Ditolak pembeli',
+            'alasan_batal' => ($data['alasan_batal'] ?? null) ?: 'Ditolak pembeli',
         ]);
 
         return back()->with('success', "Pesanan {$order->nomor_pesanan} ditandai retur (menunggu barang kembali).");

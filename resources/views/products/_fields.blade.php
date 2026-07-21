@@ -85,6 +85,7 @@
     </section>
 
     {{-- 3. Harga --}}
+    @php $lihatDiferd = auth()->user()->bolehLihatHargaDiferd(); @endphp
     <section class="space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400">Harga</h2>
 
@@ -92,11 +93,19 @@
         <div x-show="!hargaKhusus" class="rounded-lg border border-sand-200 bg-sand-50/60 p-4">
             <p class="text-xs text-sand-500 mb-3">Harga mengikuti kategori terpilih.</p>
             <template x-if="categoryId">
-                <div class="grid grid-cols-3 gap-x-4 gap-y-1.5 text-sm max-w-md">
-                    <span></span><span class="text-xs font-medium text-sand-500">Diferd</span><span class="text-xs font-medium text-sand-500">TM420</span>
-                    <span class="text-sand-600">S–XL</span><span class="tnum text-sand-800" x-text="fmt(price('sxl','d'))"></span><span class="tnum text-sand-800" x-text="fmt(price('sxl','t'))"></span>
-                    <span class="text-sand-600">XXL</span><span class="tnum text-sand-800" x-text="fmt(price('xxl','d'))"></span><span class="tnum text-sand-800" x-text="fmt(price('xxl','t'))"></span>
-                </div>
+                @if ($lihatDiferd)
+                    <div class="grid grid-cols-3 gap-x-4 gap-y-1.5 text-sm max-w-md">
+                        <span></span><span class="text-xs font-medium text-sand-500">Diferd</span><span class="text-xs font-medium text-sand-500">TM420</span>
+                        <span class="text-sand-600">S–XL</span><span class="tnum text-sand-800" x-text="fmt(price('sxl','d'))"></span><span class="tnum text-sand-800" x-text="fmt(price('sxl','t'))"></span>
+                        <span class="text-sand-600">XXL</span><span class="tnum text-sand-800" x-text="fmt(price('xxl','d'))"></span><span class="tnum text-sand-800" x-text="fmt(price('xxl','t'))"></span>
+                    </div>
+                @else
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm max-w-xs">
+                        <span></span><span class="text-xs font-medium text-sand-500">Harga</span>
+                        <span class="text-sand-600">S–XL</span><span class="tnum text-sand-800" x-text="fmt(price('sxl','t'))"></span>
+                        <span class="text-sand-600">XXL</span><span class="tnum text-sand-800" x-text="fmt(price('xxl','t'))"></span>
+                    </div>
+                @endif
             </template>
             <template x-if="!categoryId"><p class="text-sm text-sand-400">Pilih kategori dulu untuk melihat harga.</p></template>
         </div>
@@ -111,7 +120,7 @@
                 <div class="rounded-lg border border-sand-200 p-4">
                     <div class="text-sm font-medium text-sand-800 mb-3">Tier <span class="text-brand-700">{{ $tl }}</span></div>
                     <div class="space-y-3">
-                        @foreach (['diferd' => 'Diferd', 'tm420' => 'TM420'] as $kind => $klabel)
+                        @foreach ($lihatDiferd ? ['diferd' => 'Diferd', 'tm420' => 'TM420'] : ['tm420' => 'TM420'] as $kind => $klabel)
                             @php $col = "harga_{$kind}_{$tk}_override"; @endphp
                             <div>
                                 <label class="block text-xs font-medium text-sand-600">Harga {{ $klabel }}</label>

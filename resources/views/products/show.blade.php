@@ -41,16 +41,17 @@
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">
                     Harga @if ($product->hasOverride())<span class="ms-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">khusus</span>@endif
                 </h2>
+                @php $lihatDiferd = auth()->user()->bolehLihatHargaDiferd(); @endphp
                 <table class="w-full text-sm">
-                    <thead><tr class="text-xs text-sand-500 text-left"><th class="pb-2 font-medium">Tier</th><th class="pb-2 font-medium text-right">Diferd</th><th class="pb-2 font-medium text-right">TM420</th><th class="pb-2 font-medium text-right">Markup</th></tr></thead>
+                    <thead><tr class="text-xs text-sand-500 text-left"><th class="pb-2 font-medium">Tier</th>@if ($lihatDiferd)<th class="pb-2 font-medium text-right">Diferd</th>@endif<th class="pb-2 font-medium text-right">TM420</th>@if ($lihatDiferd)<th class="pb-2 font-medium text-right">Markup</th>@endif</tr></thead>
                     <tbody>
                         @foreach ($tiers as $tier)
                             @php $d = $product->effectiveDiferd($tier); $t = $product->effectiveTm420($tier); $m = ($d !== null && $t !== null) ? $t - $d : null; @endphp
                             <tr class="border-t border-sand-100">
                                 <td class="py-2 text-sand-600">{{ $tier->label() }}</td>
-                                <td class="py-2 text-right tnum text-sand-800">{{ $fmt($d) }}</td>
+                                @if ($lihatDiferd)<td class="py-2 text-right tnum text-sand-800">{{ $fmt($d) }}</td>@endif
                                 <td class="py-2 text-right tnum text-sand-800">{{ $fmt($t) }}</td>
-                                <td class="py-2 text-right tnum font-medium text-brand-700">{{ $m !== null ? '+'.$fmt($m) : '—' }}</td>
+                                @if ($lihatDiferd)<td class="py-2 text-right tnum font-medium text-brand-700">{{ $m !== null ? '+'.$fmt($m) : '—' }}</td>@endif
                             </tr>
                         @endforeach
                     </tbody>

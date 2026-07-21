@@ -156,7 +156,7 @@ class ProductController extends Controller
             $request->merge(['brand_id' => $locked]);
         }
 
-        $product->update($this->coreData($request, $data));
+        $product->update($this->coreData($request, $data, $product));
         $this->syncSizes($request, $product);
         $this->saveSpec($request, $product);
         $this->storeFiles($request, $product);
@@ -185,7 +185,7 @@ class ProductController extends Controller
 
     // ----- helpers -----
 
-    private function coreData(Request $request, array $data): array
+    private function coreData(Request $request, array $data, ?Product $existing = null): array
     {
         $core = [
             'brand_id' => $data['brand_id'],
@@ -200,8 +200,17 @@ class ProductController extends Controller
             'harga_tm420_sxl_override', 'harga_tm420_xxl_override',
         ];
 
+        // TM tidak melihat/mengirim field diferd — pertahankan override diferd yang ada supaya
+        // tidak terhapus saat TM menyimpan (harga vendor adalah urusan 420F).
+        $lihatDiferd = $request->user()->bolehLihatHargaDiferd();
+
         if ($request->boolean('harga_khusus')) {
             foreach ($cols as $c) {
+                if (! $lihatDiferd && str_contains($c, 'diferd')) {
+                    $core[$c] = $existing?->$c;   // biarkan apa adanya
+
+                    continue;
+                }
                 $v = $request->input($c);
                 $core[$c] = ($v === null || $v === '') ? null : (int) $v;
             }
