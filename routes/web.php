@@ -57,6 +57,9 @@ Route::middleware('auth')->group(function () {
     // Scorecard vendor — 420F & Diferd (vendor lihat kinerjanya sendiri).
     Route::middleware('role:420f,difred')->get('scorecard-vendor', [\App\Http\Controllers\ScorecardController::class, 'index'])->name('scorecard.index');
 
+    // Rekomendasi produksi ulang — 420F & brand (yang memutuskan produksi).
+    Route::middleware('role:420f,tm420,voojah')->get('produksi-ulang', [\App\Http\Controllers\RekomendasiController::class, 'index'])->name('rekomendasi.index');
+
     // Pengiriman / Surat Jalan — lihat semua (scoped); buat: 420F & Diferd; terima: 420F
     Route::get('pengiriman', [PengirimanController::class, 'index'])->name('pengiriman.index');
     Route::middleware('role:420f,difred')->group(function () {

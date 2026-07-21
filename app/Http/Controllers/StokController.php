@@ -52,7 +52,7 @@ class StokController extends Controller
         $rows = [];
         foreach ($query->get() as $p) {
             $sizes = [];
-            $totProduced = $totSold = $totDiterima = 0;
+            $totProduced = $totSold = $totDiterima = $totBuyout = 0;
             $totVendor = $totJalan = $totBelumCair = $totReject = $totRejectArsip = 0;
             $nilai = 0;
             foreach (Ukuran::cases() as $u) {
@@ -72,6 +72,7 @@ class StokController extends Controller
                 $totProduced += $prod;
                 $totSold += $sold;
                 $totDiterima += $terima;
+                $totBuyout += $buyout;
                 $totVendor += $vendor;
                 $totJalan += $jalan;
                 $totBelumCair += $belumCair;
@@ -84,7 +85,7 @@ class StokController extends Controller
                     $nilai += $sisaSize * (int) ($harga ?? 0);
                 }
             }
-            $sisa = $totDiterima - $totSold;
+            $sisa = $totDiterima - $totSold - $totBuyout;   // stok jual, di luar yg sudah di-buyout
             $sellThrough = $totDiterima > 0 ? (int) round($totSold / $totDiterima * 100) : 0;
             $rows[] = [
                 'product' => $p,

@@ -26,6 +26,8 @@
              'icon' => 'M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-6m0 0v-9.75m0 9.75H8.25m6-9.75H4.5m0 0V6.108c0-1.135.845-2.098 1.976-2.192a48.424 48.424 0 011.123-.08M14.25 8.25V6.108'],
             ['label' => 'Radar deadline', 'route' => 'radar.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
              'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
+            ['label' => 'Produksi ulang', 'route' => 'rekomendasi.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
+             'icon' => 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99'],
         ]],
         ['title' => 'Penjualan', 'items' => [
             ['label' => 'Pesanan', 'route' => 'orders.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
