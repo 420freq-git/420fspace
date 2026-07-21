@@ -120,6 +120,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:420f')->group(function () {
         Route::get('saldo', [\App\Http\Controllers\SaldoController::class, 'index'])->name('saldo.index');
         Route::get('cashflow', [CashflowController::class, 'index'])->name('cashflow.index');
+        Route::get('rekonsiliasi-tm', [\App\Http\Controllers\RekonsiliasiController::class, 'index'])->name('rekonsiliasi.index');
         Route::post('cashflow/transfer', [CashflowController::class, 'storeTransfer'])->name('cashflow.transfer.store');
         Route::delete('cashflow/transfer/{brandLedger}', [CashflowController::class, 'destroyTransfer'])->name('cashflow.transfer.destroy');
     });
