@@ -142,6 +142,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('pengaturan', [SettingController::class, 'index'])->name('settings.index');
         Route::patch('pengaturan', [SettingController::class, 'update'])->name('settings.update');
+        Route::post('pengaturan/reset-transaksi', [SettingController::class, 'resetTransaksi'])->name('settings.reset');
 
         Route::get('audit-log', [AuditController::class, 'index'])->name('audit.index');
     });

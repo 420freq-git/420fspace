@@ -49,5 +49,43 @@
                 </div>
             </form>
         </div>
+
+        {{-- Zona berbahaya: reset transaksi --}}
+        <div class="mt-8 rounded-xl border border-red-200 bg-red-50/50 shadow-sm p-6 sm:p-8"
+             x-data="{ buka: false, konfirmasi: '' }">
+            <div class="flex items-start gap-3">
+                <svg class="h-5 w-5 shrink-0 text-red-500 mt-0.5" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                <div class="flex-1">
+                    <h2 class="text-sm font-semibold text-red-800">Reset transaksi</h2>
+                    <p class="mt-1 text-sm text-red-700">Menghapus <span class="font-medium">semua data transaksi</span>: batch, PO, pesanan, penjualan, pengiriman, invoice, penarikan, ledger, audit log.</p>
+                    <p class="mt-1 text-xs text-red-600">Produk, kategori, harga, brand, dan pengguna <span class="font-medium">TIDAK dihapus</span>. Sistem membuat backup <code>.sql</code> otomatis lebih dulu. Tindakan ini tidak bisa dibatalkan dari aplikasi.</p>
+
+                    @error('konfirmasi') <p class="mt-2 text-xs font-medium text-red-700">{{ $message }}</p> @enderror
+
+                    <div x-show="! buka" x-cloak>
+                        <button type="button" @click="buka = true" class="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100">Reset transaksi…</button>
+                    </div>
+
+                    <form x-show="buka" x-cloak method="POST" action="{{ route('settings.reset') }}" class="mt-4 space-y-3"
+                          @submit="if (konfirmasi !== 'RESET') { $event.preventDefault(); }">
+                        @csrf
+                        <div>
+                            <label class="block text-xs font-medium text-red-800">Ketik <span class="font-mono font-semibold">RESET</span> untuk mengonfirmasi</label>
+                            <input type="text" name="konfirmasi" x-model="konfirmasi" autocomplete="off"
+                                   class="mt-1 block w-48 rounded-lg border-red-300 text-sm focus:border-red-500 focus:ring-red-500"
+                                   placeholder="RESET">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="submit" :disabled="konfirmasi !== 'RESET'"
+                                    class="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+                                    :class="konfirmasi === 'RESET' ? 'bg-red-600 hover:bg-red-700' : 'bg-red-300 cursor-not-allowed'">
+                                Hapus semua transaksi sekarang
+                            </button>
+                            <button type="button" @click="buka = false; konfirmasi = ''" class="rounded-lg border border-sand-300 bg-white px-4 py-2 text-sm font-medium text-sand-700 hover:bg-sand-100">Batal</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </x-app-layout>

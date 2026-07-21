@@ -117,7 +117,12 @@
       "Bash(echo \"  TIDAK di-import \\(harus pakai FQN \\\\\\\\App\\\\\\\\Enums\\\\\\\\Role::\\)\")",
       "Bash(grep -rn 'in_array\\($user->role, \\\\[Role::Tm420, Role::Voojah\\\\], true\\)\\\\|in_array\\($user->role, \\\\[\\\\\\\\App\\\\\\\\Enums' app/)",
       "Bash(grep -rnE \"\\(===|==|!==|\\\\\\\\\\\\\\\\App\\\\\\\\\\\\\\\\Enums\\\\\\\\\\\\\\\\|Role::\\) *in_array\\\\\\(|in_array\\\\\\([^\\)]*Role::Voojah[^\\)]*\\\\\\)\\(->| ->\\)\" app/)",
-      "Bash(grep -vE 'in_array\\\\\\(\\\\$user->role, \\\\[Role::Tm420, Role::Voojah\\\\], true\\\\\\) \\(&&|\\\\\\)|,|\\\\?|$\\)')"
+      "Bash(grep -vE 'in_array\\\\\\(\\\\$user->role, \\\\[Role::Tm420, Role::Voojah\\\\], true\\\\\\) \\(&&|\\\\\\)|,|\\\\?|$\\)')",
+      "Bash(\"C:/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysql.exe\" -u root 420frequency -e \"SELECT id, tipe, jumlah FROM vendor_ledger WHERE tipe='deposit_selesai';\")",
+      "Bash(\"C:/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysql.exe\" -u root 420frequency -e \"SHOW COLUMNS FROM invoices;\")",
+      "Bash(awk '{print $1}')",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)"
     ]
   }
 }
