@@ -64,6 +64,8 @@
              'icon' => 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99'],
             ['label' => 'Rapor per artikel', 'route' => 'rapor-produk.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
              'icon' => 'M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6'],
+            ['label' => 'Analisis channel', 'route' => 'channel.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
+             'icon' => 'M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z'],
             ['label' => 'Terjual per kategori', 'route' => 'laporan.terjual-kategori', 'ready' => true, 'roles' => [Role::Admin, Role::Diferd],
              'icon' => 'M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6'],
             ['label' => 'Keuangan bulanan', 'route' => 'laporan.keuangan', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah, Role::Diferd],

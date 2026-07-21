@@ -63,6 +63,9 @@ Route::middleware('auth')->group(function () {
     // Rapor per artikel — 420F & brand (discope); fee hanya admin.
     Route::middleware('role:420f,tm420,voojah')->get('rapor-produk', [\App\Http\Controllers\RaporProdukController::class, 'index'])->name('rapor-produk.index');
 
+    // Analisis per channel marketplace — 420F & brand (discope).
+    Route::middleware('role:420f,tm420,voojah')->get('analisis-channel', [\App\Http\Controllers\ChannelController::class, 'index'])->name('channel.index');
+
     // Pengiriman / Surat Jalan — lihat semua (scoped); buat: 420F & Diferd; terima: 420F
     Route::get('pengiriman', [PengirimanController::class, 'index'])->name('pengiriman.index');
     Route::middleware('role:420f,difred')->group(function () {
