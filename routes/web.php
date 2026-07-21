@@ -54,6 +54,9 @@ Route::middleware('auth')->group(function () {
     // Radar deadline & paparan buy-out — 420F & brand (discope). Vendor tak perlu (bukan risikonya).
     Route::middleware('role:420f,tm420,voojah')->get('radar-deadline', [\App\Http\Controllers\RadarController::class, 'index'])->name('radar.index');
 
+    // Scorecard vendor — 420F & Diferd (vendor lihat kinerjanya sendiri).
+    Route::middleware('role:420f,difred')->get('scorecard-vendor', [\App\Http\Controllers\ScorecardController::class, 'index'])->name('scorecard.index');
+
     // Pengiriman / Surat Jalan — lihat semua (scoped); buat: 420F & Diferd; terima: 420F
     Route::get('pengiriman', [PengirimanController::class, 'index'])->name('pengiriman.index');
     Route::middleware('role:420f,difred')->group(function () {
