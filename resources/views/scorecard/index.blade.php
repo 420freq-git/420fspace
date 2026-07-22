@@ -48,16 +48,16 @@
                 @if (empty($tahapRata))
                     <div class="p-8 text-center text-sm text-sand-400">Belum ada riwayat tahap.</div>
                 @else
-                    <div class="p-5 space-y-3">
+                    <div class="p-5 space-y-2.5">
                         @foreach ($tahapRata as $t)
-                            <div>
-                                <div class="flex items-center justify-between text-sm">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $t['tahap']->badgeClasses() }}">{{ $t['tahap']->label() }}</span>
-                                    <span class="tnum text-sand-700">{{ $d($t['rata_detik']) }} <span class="text-xs text-sand-400">· {{ $t['n'] }}×</span></span>
-                                </div>
-                                <div class="mt-1 h-1.5 w-full rounded-full bg-sand-100 overflow-hidden">
+                            <div class="flex items-center gap-3">
+                                <span class="w-32 shrink-0">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap {{ $t['tahap']->badgeClasses() }}">{{ $t['tahap']->label() }}</span>
+                                </span>
+                                <div class="flex-1 h-2 rounded-full bg-sand-100 overflow-hidden">
                                     <div class="h-full rounded-full bg-brand-500" style="width: {{ max(2, round($t['rata_detik'] / $terlamaDetik * 100)) }}%"></div>
                                 </div>
+                                <span class="w-24 shrink-0 text-right text-sm text-sand-700 tnum whitespace-nowrap">{{ $d($t['rata_detik']) }} <span class="text-xs text-sand-400">· {{ $t['n'] }}×</span></span>
                             </div>
                         @endforeach
                     </div>
