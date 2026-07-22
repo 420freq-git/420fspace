@@ -116,6 +116,9 @@ class InvoiceController extends Controller
         if ($invoice->status === 'lunas') {
             return back()->with('error', 'Invoice lunas tidak bisa dihapus.');
         }
+        if ($invoice->isBuyout()) {
+            return back()->with('error', 'Invoice buy-out dibatalkan dari halaman Settlement batch (agar hak Diferd & status stok ikut dilepas), bukan dari sini.');
+        }
 
         $invoice->orders()->update(['invoice_id' => null]);
         $invoice->delete();

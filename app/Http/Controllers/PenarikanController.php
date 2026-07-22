@@ -156,19 +156,22 @@ class PenarikanController extends Controller
 
     private function hakGlobal(): int
     {
-        // Hanya penjualan konsinyasi. Batch cash sudah dibayar penuh di muka (ledger tipe 'cash'),
-        // jadi penjualannya tidak menambah hak yang bisa ditarik — mencegah dobel bayar.
-        return (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
+        // Penjualan konsinyasi + buy-out sisa stok. Batch cash sudah dibayar penuh di muka (ledger
+        // tipe 'cash'), jadi tidak menambah hak yang bisa ditarik — mencegah dobel bayar. Buy-out
+        // kini menambah hak Diferd (420F beli sisa stok), ditutup lewat penarikan seperti hak jual.
+        return (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'))
+            + (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah');
     }
 
     /**
-     * Hak yang sudah dibayar: entri ledger manual 420F + seluruh penarikan yang cair.
+     * Hak yang sudah dibayar: entri ledger pembayaran manual 420F + seluruh penarikan yang cair.
      * Baris ledger hasil pembekuan penarikan (penarikan_id terisi) sengaja dikecualikan supaya
      * tidak terhitung dua kali — nilai penuh penarikan sudah dihitung dari tabel penarikan.
+     * Buy-out TIDAK dihitung di sini: ia hak yang belum dibayar (lihat hakGlobal), bukan pembayaran.
      */
     private function hakDibayar(): int
     {
-        return (int) VendorLedger::whereIn('tipe', ['pembayaran', 'buyout'])
+        return (int) VendorLedger::where('tipe', 'pembayaran')
                 ->whereNull('penarikan_id')->sum('jumlah')
             + (int) Penarikan::where('status', 'disetujui')->sum('jumlah');
     }

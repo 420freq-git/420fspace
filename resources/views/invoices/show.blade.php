@@ -28,7 +28,7 @@
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
                 <p class="text-sm text-sand-500">Ditagih ke</p>
                 <p class="mt-1 text-lg font-semibold text-sand-900">{{ $invoice->brand->nama }}</p>
-                <p class="text-xs text-sand-400">{{ $invoice->orders->count() }} pesanan · {{ number_format($invoice->total_qty, 0, ',', '.') }} pcs</p>
+                <p class="text-xs text-sand-400">{{ $invoice->isBuyout() ? 'Buy-out sisa stok' : $invoice->orders->count().' pesanan' }} · {{ number_format($invoice->total_qty, 0, ',', '.') }} pcs</p>
             </div>
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
                 <p class="text-sm text-sand-500">Total tagihan</p>
@@ -96,6 +96,18 @@
                                 <td class="px-5 py-3 text-right tnum text-sand-800">{{ $fmt($o->nilai_tm) }}</td>
                             </tr>
                         @endforeach
+                        @if ($invoice->isBuyout())
+                            <tr class="hover:bg-sand-50/50 align-top">
+                                <td class="px-5 py-3">
+                                    <div class="text-sand-700">Buy-out sisa stok</div>
+                                    <div class="mt-0.5 text-xs text-sand-500">{{ $invoice->catatan }}</div>
+                                </td>
+                                <td class="px-5 py-3 text-sand-600 tnum">{{ $invoice->tanggal_terbit->format('d/m/Y') }}</td>
+                                <td class="px-5 py-3 text-sand-600">Buy-out</td>
+                                <td class="px-5 py-3 text-center tnum text-sand-700">{{ $invoice->pcs_manual }}</td>
+                                <td class="px-5 py-3 text-right tnum text-sand-800">{{ $fmt($invoice->jumlah_manual) }}</td>
+                            </tr>
+                        @endif
                     </tbody>
                     <tfoot>
                         <tr class="border-t-2 border-sand-200 bg-sand-50 font-semibold text-sand-900">

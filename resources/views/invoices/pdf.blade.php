@@ -66,6 +66,15 @@
                     <td class="r">{{ $fmt($o->nilai_tm) }}</td>
                 </tr>
             @endforeach
+            @if ($invoice->isBuyout())
+                <tr>
+                    <td>Buy-out sisa stok<div class="muted" style="font-size:8px;">{{ $invoice->catatan }}</div></td>
+                    <td>{{ $invoice->tanggal_terbit->translatedFormat('d M Y') }}</td>
+                    <td>Buy-out</td>
+                    <td class="c">{{ $invoice->pcs_manual }}</td>
+                    <td class="r">{{ $fmt($invoice->jumlah_manual) }}</td>
+                </tr>
+            @endif
         </tbody>
         <tfoot>
             <tr class="total">

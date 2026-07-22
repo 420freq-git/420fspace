@@ -66,7 +66,7 @@
                                     <td class="px-5 py-3.5"><a href="{{ route('invoices.show', $inv) }}" class="font-medium text-sand-900 hover:text-brand-700 tnum">{{ $inv->nomor }}</a></td>
                                     <td class="px-5 py-3.5 text-sand-600">{{ $inv->brand->nama }}</td>
                                     <td class="px-5 py-3.5 text-sand-600 tnum">{{ $inv->tanggal_terbit->format('d/m/Y') }}</td>
-                                    <td class="px-5 py-3.5 text-center tnum text-sand-700">{{ $inv->orders->count() }}</td>
+                                    <td class="px-5 py-3.5 text-center tnum text-sand-700">{{ $inv->isBuyout() ? 'Buy-out' : $inv->orders->count() }}</td>
                                     <td class="px-5 py-3.5 text-right tnum text-sand-800">{{ $fmt($inv->total) }}</td>
                                     <td class="px-5 py-3.5 text-center">
                                         @if ($inv->isLunas())

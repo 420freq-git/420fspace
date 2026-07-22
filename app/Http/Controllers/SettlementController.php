@@ -6,6 +6,7 @@ use App\Enums\LedgerTipe;
 use App\Enums\BatchStatus;
 use App\Models\Batch;
 use App\Models\BrandLedger;
+use App\Models\Invoice;
 use App\Models\VendorLedger;
 use App\Services\SettlementService;
 use Illuminate\Http\Request;
@@ -246,10 +247,11 @@ class SettlementController extends Controller
     }
 
     /**
-     * Buy-out sisa stok batch di deadline. 420F membeli seluruh stok yang belum terjual senilai
-     * harga Diferd; barangnya JADI MILIK TM420 (keluar dari stok jual 420F). Uang mengalir
-     * TM420 → 420F → Diferd (kas 420F netral). Batch ditandai dibuyout sehingga sisa stoknya
-     * tidak lagi bisa dijual/di-FIFO dan hilang dari radar.
+     * Buy-out sisa stok batch di deadline. 420F membeli seluruh stok yang belum terjual; barangnya
+     * JADI MILIK TM420 (keluar dari stok jual). Alurnya seperti TAGIHAN, bukan settle seketika:
+     *   - Terbit INVOICE ke TM di harga tm420 → uang masuk 420F saat invoice ditandai lunas.
+     *   - HAK DIFERD bertambah di harga diferd → ditutup belakangan lewat penarikan (bukan langsung).
+     *   - 420F menyimpan margin (tm420 − diferd) begitu invoice dibayar.
      */
     public function buyout(Request $request, Batch $batch)
     {
@@ -262,28 +264,50 @@ class SettlementController extends Controller
             return back()->with('error', 'Tidak ada sisa stok untuk di-buy-out.');
         }
 
-        DB::transaction(function () use ($batch, $sisa) {
-            // 420F → Diferd (bayar produksi stok sisa).
+        $invoice = DB::transaction(function () use ($batch, $sisa) {
+            // Hak Diferd bertambah (belum dibayar — masuk saldo settlement, ditutup via penarikan).
             VendorLedger::create([
                 'brand_id' => $batch->brand_id,
                 'batch_id' => $batch->id,
                 'tanggal' => now(),
                 'tipe' => LedgerTipe::Buyout->value,
                 'jumlah' => $sisa['nilai'],
-                'keterangan' => 'Buy-out '.$sisa['pcs'].' pcs sisa stok (milik TM420)',
+                'keterangan' => 'Buy-out '.$sisa['pcs'].' pcs sisa stok (hak Diferd)',
             ]);
-            // TM420 → 420F (bayar buy-out). Kas 420F netral.
-            BrandLedger::create([
+
+            // Invoice resmi ke TM (harga tm420). Uang masuk 420F saat ditandai lunas (BrandLedger).
+            $invoice = Invoice::create([
                 'brand_id' => $batch->brand_id,
-                'tanggal' => now(),
-                'jumlah' => $sisa['nilai'],
-                'keterangan' => 'Buy-out sisa stok '.$batch->nomor_batch.' (TM bayar 420F)',
+                'batch_id' => $batch->id,
+                'nomor' => $this->invoiceNomor($batch->brand),
+                'tanggal_terbit' => now(),
+                'status' => 'belum_bayar',
+                'jumlah_manual' => $sisa['nilai_tm'],
+                'pcs_manual' => $sisa['pcs'],
+                'catatan' => 'Buy-out sisa stok batch '.$batch->nomor_batch.' ('.$sisa['pcs'].' pcs)',
             ]);
 
             $batch->update(['dibuyout' => true, 'tgl_buyout' => now()]);
+
+            return $invoice;
         });
 
-        return back()->with('success', 'Buy-out '.$sisa['pcs'].' pcs (Rp '.number_format($sisa['nilai'], 0, ',', '.').') — stok jadi milik TM420 & keluar dari stok jual.');
+        return redirect()->route('invoices.show', $invoice)->with('success',
+            'Buy-out '.$sisa['pcs'].' pcs — invoice '.$invoice->nomor.' Rp '.number_format($sisa['nilai_tm'], 0, ',', '.')
+            .' terbit untuk TM; hak Diferd +Rp '.number_format($sisa['nilai'], 0, ',', '.').'. Stok jadi milik TM420.');
+    }
+
+    /** Nomor invoice (format sama dgn InvoiceController). */
+    private function invoiceNomor(\App\Models\Brand $brand): string
+    {
+        $base = 'INV.'.BatchController::brandKode($brand).'.'.now()->format('m.y').'.';
+        $n = Invoice::where('brand_id', $brand->id)->whereYear('tanggal_terbit', now()->year)->count() + 1;
+        do {
+            $nomor = $base.str_pad((string) $n, 2, '0', STR_PAD_LEFT);
+            $n++;
+        } while (Invoice::where('nomor', $nomor)->exists());
+
+        return $nomor;
     }
 
     public function destroyLedger(VendorLedger $ledger)
@@ -294,13 +318,19 @@ class SettlementController extends Controller
 
         $batch = $ledger->batch;
 
-        DB::transaction(function () use ($ledger, $batch) {
-            // Buy-out dibatalkan: hapus sisi TM (BrandLedger) & lepas flag agar stok kembali jual.
+        // Buy-out dibatalkan → hapus juga invoice tagihannya (kecuali sudah lunas) & lepas flag.
+        $invoiceBuyout = null;
+        if ($ledger->tipe === LedgerTipe::Buyout && $batch) {
+            $invoiceBuyout = Invoice::where('batch_id', $batch->id)->where('jumlah_manual', '>', 0)
+                ->latest('id')->first();
+            if ($invoiceBuyout && $invoiceBuyout->isLunas()) {
+                return back()->with('error', 'Invoice buy-out '.$invoiceBuyout->nomor.' sudah lunas — batalkan pelunasannya dulu sebelum menghapus hak buy-out.');
+            }
+        }
+
+        DB::transaction(function () use ($ledger, $batch, $invoiceBuyout) {
             if ($ledger->tipe === LedgerTipe::Buyout && $batch) {
-                BrandLedger::where('brand_id', $batch->brand_id)
-                    ->where('jumlah', $ledger->jumlah)
-                    ->where('keterangan', 'like', 'Buy-out sisa stok '.$batch->nomor_batch.'%')
-                    ->latest('id')->limit(1)->delete();
+                $invoiceBuyout?->delete();
                 $batch->update(['dibuyout' => false, 'tgl_buyout' => null]);
             }
             $ledger->delete();

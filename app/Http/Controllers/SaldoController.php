@@ -66,17 +66,9 @@ class SaldoController extends Controller
             ]);
         }
 
-        // KELUAR — buy-out sisa stok oleh 420F.
-        foreach (VendorLedger::where('tipe', 'buyout')->get() as $v) {
-            $moves->push([
-                'tanggal' => $v->tanggal,
-                'urut' => $v->created_at,
-                'arah' => 'keluar',
-                'jumlah' => (int) $v->jumlah,
-                'label' => 'Buy-out stok sisa',
-                'ket' => $v->keterangan,
-            ]);
-        }
+        // Catatan: buy-out TIDAK lagi jadi uang keluar seketika. Kini ia menambah HAK Diferd
+        // (ditutup via pembayaran/penarikan di atas) & menerbitkan invoice ke TM (uang masuk lewat
+        // 'Pembayaran invoice ...' di blok MASUK). Jadi tak ada baris keluar khusus buy-out.
 
         // KELUAR — pembayaran cash batch di muka (420F → Diferd).
         // Jumlah negatif = refund reject yang Diferd kembalikan ke 420F → jadi uang MASUK.

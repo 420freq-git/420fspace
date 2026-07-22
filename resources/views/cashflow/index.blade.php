@@ -37,13 +37,13 @@
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-6">
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">Uang keluar — ke Diferd</h2>
                 <dl class="space-y-2.5 text-sm">
-                    <div class="flex justify-between"><dt class="text-sand-600">Hak Diferd (barang terjual)</dt><dd class="tnum font-medium text-sand-900">{{ $fmt($kewajibanDiferd) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-sand-600">Hak Diferd (terjual + buy-out)</dt><dd class="tnum font-medium text-sand-900">{{ $fmt($kewajibanDiferd) }}</dd></div>
+                    @if ($buyoutDiferd > 0)
+                        <div class="flex justify-between pl-3"><dt class="text-xs text-sand-400">· di antaranya buy-out sisa stok</dt><dd class="tnum text-xs text-sand-500">{{ $fmt($buyoutDiferd) }}</dd></div>
+                    @endif
                     <div class="flex justify-between"><dt class="text-sand-500">Sudah dibayar (pembayaran)</dt><dd class="tnum text-brand-700">{{ $fmt($pembayaranDiferd) }}</dd></div>
                     <div class="flex justify-between border-t border-sand-200 pt-2.5"><dt class="font-medium text-sand-800">Sisa hak ke Diferd</dt>
                         <dd class="tnum font-semibold {{ $sisaBayarDiferd > 0 ? 'text-amber-700' : 'text-brand-700' }}">{{ $sisaBayarDiferd > 0 ? $fmt($sisaBayarDiferd) : 'Lunas' }}</dd></div>
-                    @if ($buyoutDiferd > 0)
-                        <div class="flex justify-between"><dt class="text-sand-500">Buy-out stok sisa</dt><dd class="tnum text-sand-700">{{ $fmt($buyoutDiferd) }}</dd></div>
-                    @endif
                 </dl>
                 @if ($modalDiferd > 0)
                     <div class="mt-4 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2.5">

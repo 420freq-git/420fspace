@@ -16,8 +16,18 @@ class SettlementService
 {
     public function __construct(private StockService $stock) {}
 
-    /** Kewajiban ke vendor dari barang batch ini yang sudah terjual. */
+    /**
+     * Hak Diferd atas batch ini = dari barang terjual + dari buy-out sisa stok.
+     * Buy-out kini menambah hak (bukan langsung dibayar): 420F beli sisa stok dari Diferd, hak-nya
+     * ditutup belakangan lewat penarikan/pembayaran seperti hak penjualan biasa.
+     */
     public function kewajiban(int $batchId): int
+    {
+        return $this->hakJual($batchId) + $this->buyout($batchId);
+    }
+
+    /** Hak Diferd dari barang batch ini yang sudah terjual (tanpa buy-out). */
+    public function hakJual(int $batchId): int
     {
         return (int) Sale::where('batch_id', $batchId)->sold()->sum(DB::raw('qty * harga_diferd'));
     }
@@ -276,9 +286,10 @@ class SettlementService
     }
 
     /**
-     * Sisa stok belum terjual di batch: jumlah pcs & nilainya (× harga Diferd).
-     * Nilai = dasar/paparan buy-out kalau stok ini tak laku sampai deadline.
-     * @return array{pcs:int, nilai:int}
+     * Sisa stok belum terjual di batch: jumlah pcs & nilainya.
+     *  - nilai    : × harga Diferd (hak Diferd bila di-buy-out)
+     *  - nilai_tm : × harga tagihan TM (yang ditagihkan ke TM saat buy-out; VOOJAH = diferd)
+     * @return array{pcs:int, nilai:int, nilai_tm:int}
      */
     public function sisaStok(Batch $batch): array
     {
@@ -295,26 +306,29 @@ class SettlementService
         }
 
         if (empty($combos)) {
-            return ['pcs' => 0, 'nilai' => 0];
+            return ['pcs' => 0, 'nilai' => 0, 'nilai_tm' => 0];
         }
 
         $products = Product::with('category.prices')
             ->whereIn('id', array_unique(array_column($combos, 'product_id')))
             ->get()->keyBy('id');
 
-        $pcs = 0; $nilai = 0;
+        $pcs = 0; $nilai = 0; $nilaiTm = 0;
         foreach ($combos as $c) {
             $available = $this->stock->availableInBatch($batch->id, $c['product_id'], $c['ukuran']);
             if ($available <= 0) {
                 continue;
             }
             $product = $products->get($c['product_id']);
-            $diferd = $product?->effectiveDiferd(SizeTier::forUkuran($c['ukuran'])) ?? 0;
+            $tier = SizeTier::forUkuran($c['ukuran']);
+            $diferd = $product?->effectiveDiferd($tier) ?? 0;
+            $tm = $product?->hargaTagihan($tier) ?? 0;
             $pcs += $available;
             $nilai += $available * $diferd;
+            $nilaiTm += $available * $tm;
         }
 
-        return ['pcs' => $pcs, 'nilai' => $nilai];
+        return ['pcs' => $pcs, 'nilai' => $nilai, 'nilai_tm' => $nilaiTm];
     }
 
     /** Ringkasan lengkap satu batch. */
@@ -334,6 +348,7 @@ class SettlementService
                 'cash' => true,
                 'cash_dibayar' => (bool) $batch->cash_dibayar,
                 'kewajiban' => $cash['diferd'],
+                'hak_jual' => $cash['diferd'],
                 'terbayar' => $terbayarCash,
                 'pembayaran' => $terbayarCash,
                 'penarikan' => 0,
@@ -367,6 +382,7 @@ class SettlementService
         return [
             'cash' => false,
             'kewajiban' => $kewajiban,
+            'hak_jual' => $this->hakJual($batch->id),
             'terbayar' => $terbayar,
             'pembayaran' => $ledger,
             'penarikan' => $penarikan,

@@ -105,7 +105,10 @@
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-6">
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">Hak vendor — barang terjual</h2>
                 <dl class="space-y-2.5 text-sm">
-                    <div class="flex justify-between"><dt class="text-sand-600">Hak (barang terjual)</dt><dd class="tnum font-medium text-sand-900">{{ $fmt($summary['kewajiban']) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-sand-600">Hak (barang terjual)</dt><dd class="tnum font-medium text-sand-900">{{ $fmt($summary['hak_jual']) }}</dd></div>
+                    @if ($summary['buyout'] > 0)
+                        <div class="flex justify-between"><dt class="text-sand-600">Hak buy-out sisa stok</dt><dd class="tnum font-medium text-sand-900">{{ $fmt($summary['buyout']) }}</dd></div>
+                    @endif
                     <div class="flex justify-between"><dt class="text-sand-500">Dibayar (dicatat ke batch)</dt><dd class="tnum text-sand-700">− {{ $fmt($summary['pembayaran']) }}</dd></div>
                     @if ($summary['penarikan'] > 0)
                         <div class="flex justify-between">
@@ -125,7 +128,7 @@
                     </div>
                 </dl>
                 @if ($summary['buyout'] > 0)
-                    <p class="mt-3 text-xs text-sand-400">Buy-out stok sisa: {{ $fmt($summary['buyout']) }} (tercatat di riwayat).</p>
+                    <p class="mt-3 text-xs text-sand-400">Buy-out menambah hak Diferd {{ $fmt($summary['buyout']) }}; TM ditagih lewat invoice (lihat menu Invoice).</p>
                 @endif
             </div>
 
@@ -162,14 +165,14 @@
                         @if ($batch->dibuyout)
                             <p class="text-sm text-sand-500">Sisa stok</p>
                             <p class="mt-1 text-lg font-semibold text-sand-700">Sudah di-buy-out</p>
-                            <p class="mt-1 text-xs text-sand-400">jadi milik TM420 · {{ $batch->tgl_buyout?->format('d/m/Y') }}</p>
+                            <p class="mt-1 text-xs text-sand-400">jadi milik TM420 · {{ $batch->tgl_buyout?->format('d/m/Y') }} · ditagih via invoice</p>
                         @else
-                            <p class="text-sm text-sand-500">Nilai sisa stok</p>
+                            <p class="text-sm text-sand-500">Nilai sisa stok (hak Diferd)</p>
                             <p class="mt-1 text-xl font-semibold text-sand-900 tnum">{{ $fmt($summary['sisa_stok_value']) }}</p>
-                            <p class="mt-1 text-xs text-sand-400">dasar buy-out</p>
+                            <p class="mt-1 text-xs text-sand-400">dasar buy-out · ditagih ke TM di harga jual</p>
                             @if ($isAdmin && $summary['sisa_stok_value'] > 0)
                                 <form method="POST" action="{{ route('settlement.buyout', $batch) }}" class="mt-3"
-                                      onsubmit="return confirm('Buy-out seluruh sisa stok senilai {{ $fmt($summary['sisa_stok_value']) }}? Stok jadi milik TM420 & keluar dari stok jual. Uang: TM → 420F → Diferd (kas 420F netral).');">
+                                      onsubmit="return confirm('Buy-out seluruh sisa stok? Stok jadi milik TM420 & keluar dari stok jual. Terbit INVOICE ke TM (harga jual), hak Diferd +{{ $fmt($summary['sisa_stok_value']) }} (dibayar via penarikan). 420F ambil margin saat invoice lunas.');">
                                     @csrf @method('PATCH')
                                     <button type="submit" class="w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100">Buy-out sisa stok</button>
                                 </form>

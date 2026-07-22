@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['brand_id', 'nomor', 'tanggal_terbit', 'status', 'tanggal_bayar', 'catatan'])]
+#[Fillable(['brand_id', 'batch_id', 'nomor', 'tanggal_terbit', 'status', 'jumlah_manual', 'pcs_manual', 'tanggal_bayar', 'catatan'])]
 class Invoice extends Model
 {
     use Auditable;
@@ -23,6 +23,8 @@ class Invoice extends Model
         return [
             'tanggal_terbit' => 'date',
             'tanggal_bayar' => 'date',
+            'jumlah_manual' => 'integer',
+            'pcs_manual' => 'integer',
         ];
     }
 
@@ -31,22 +33,33 @@ class Invoice extends Model
         return $this->belongsTo(Brand::class);
     }
 
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(Batch::class);
+    }
+
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
     }
 
-    /** Total tagihan (Σ baris × harga_tm420). Butuh eager-load orders.items. */
+    /** Invoice buy-out sisa stok (tagihan manual, bukan dari pesanan marketplace). */
+    public function isBuyout(): bool
+    {
+        return $this->jumlah_manual > 0;
+    }
+
+    /** Total tagihan = Σ pesanan (× harga_tm420) + baris manual (buy-out). Butuh eager-load orders.items. */
     public function getTotalAttribute(): int
     {
         return (int) $this->orders->sum(
             fn ($o) => $o->items->sum(fn ($s) => $s->qty * ($s->harga_tm420 ?? 0))
-        );
+        ) + (int) $this->jumlah_manual;
     }
 
     public function getTotalQtyAttribute(): int
     {
-        return (int) $this->orders->sum(fn ($o) => $o->items->sum('qty'));
+        return (int) $this->orders->sum(fn ($o) => $o->items->sum('qty')) + (int) $this->pcs_manual;
     }
 
     public function isLunas(): bool

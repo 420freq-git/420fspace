@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Batch;
 use App\Models\Brand;
 use App\Models\BrandLedger;
+use App\Models\Invoice;
 use App\Models\Penarikan;
 use App\Models\Sale;
 use App\Models\VendorLedger;
@@ -20,27 +21,37 @@ class CashflowController extends Controller
         // Konsinyasi saja (batch cash sudah lunas di muka & dikecualikan).
         $lunas = fn () => Sale::consignment()->whereHas('order', fn ($o) => $o->where('status', 'lunas'))->whereNotNull('harga_tm420');
 
-        $tagihanTM = (int) $lunas()->sum(DB::raw('qty * harga_tm420'));
+        $saleTagihan = (int) $lunas()->sum(DB::raw('qty * harga_tm420'));
         $feeKonsinyasi = (int) $lunas()->sum(DB::raw('qty * (harga_tm420 - harga_diferd)'));
         // Fee 420F dari batch cash (margin di muka) — dari BrandLedger cash − VendorLedger cash.
         $cashTm = (int) BrandLedger::where('keterangan', 'like', 'Cash batch%')->sum('jumlah');
         $cashDiferd = (int) VendorLedger::where('tipe', 'cash')->sum('jumlah');
-        $fee = $feeKonsinyasi + ($cashTm - $cashDiferd);
+
+        // Buy-out kini alur tagihan: hak Diferd (di harga diferd) + invoice ke TM (di harga tm420).
+        $buyoutDiferd = (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah');           // hak Diferd
+        $buyoutInvoice = (int) Invoice::where('jumlah_manual', '>', 0)->sum('jumlah_manual');  // tagihan TM
+        // Fee 420F = margin konsinyasi + margin cash + margin buy-out (tm420 − diferd).
+        $fee = $feeKonsinyasi + ($cashTm - $cashDiferd) + ($buyoutInvoice - $buyoutDiferd);
+
+        // Tagihan TM = penjualan konsinyasi lunas + tagihan buy-out (invoice).
+        $tagihanTM = $saleTagihan + $buyoutInvoice;
 
         $penarikanCair = (int) Penarikan::where('status', 'disetujui')->sum('jumlah');
-        $kewajibanDiferd = (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
+        // Hak Diferd = penjualan konsinyasi + buy-out (keduanya ditutup lewat penarikan/pembayaran).
+        $kewajibanDiferd = (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd')) + $buyoutDiferd;
         // whereNull penarikan_id: baris hasil pembekuan penarikan sudah terwakili $penarikanCair —
         // tanpa filter ini uang penarikan terhitung dua kali.
         $pembayaranDiferd = (int) VendorLedger::where('tipe', 'pembayaran')->whereNull('penarikan_id')->sum('jumlah') + $penarikanCair;
-        $buyoutDiferd = (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah');
         // Modal (deposit) yang masih mengendap di vendor — global, di luar kas 420F.
         $modalDiferd = $this->settlement->depositMengendap();
-        // Uang keluar ke Diferd = pembayaran konsinyasi + buyout + cash di muka.
-        $dibayarDiferd = $pembayaranDiferd + $buyoutDiferd + $cashDiferd;
+        // Uang NYATA keluar ke Diferd = pembayaran konsinyasi + cash di muka. Buy-out belum dibayar
+        // (masih hak) — ditutup lewat pembayaran/penarikan, jadi sudah terwakili $pembayaranDiferd.
+        $dibayarDiferd = $pembayaranDiferd + $cashDiferd;
         $ditransferTM = (int) BrandLedger::sum('jumlah');
-        // Transfer buy-out & cash (TM bayar 420F di muka) dipisah dari transfer penjualan konsinyasi.
-        $transferKhusus = (int) BrandLedger::where('keterangan', 'like', 'Buy-out sisa stok%')
-            ->orWhere('keterangan', 'like', 'Cash batch%')->sum('jumlah');
+        // Cash (TM bayar 420F di muka) dipisah dari transfer penjualan; buy-out kini via invoice
+        // ('Pembayaran invoice%') sehingga IKUT sebagai transfer penjualan seperti invoice biasa.
+        $transferKhusus = (int) BrandLedger::where('keterangan', 'like', 'Cash batch%')
+            ->orWhere('keterangan', 'like', 'Buy-out sisa stok%')->sum('jumlah');
         $ditransferTMPenjualan = $ditransferTM - $transferKhusus;
 
         return view('cashflow.index', [
