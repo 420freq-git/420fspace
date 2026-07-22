@@ -54,6 +54,49 @@
                         </form>
                     @endif
                 </div>
+
+                {{-- Kewajiban ganti Diferd atas reject (batch cash dibayar penuh di muka) --}}
+                @if (($summary['ganti_obligasi_pcs'] ?? 0) > 0)
+                    <div class="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-4">
+                        <h3 class="text-sm font-semibold text-rose-900">Reject di batch cash — kewajiban ganti Diferd</h3>
+                        <p class="mt-1 text-xs text-rose-700">
+                            {{ $summary['ganti_obligasi_pcs'] }} pcs qty PO tidak sampai diterima (reject/kurang). Karena sudah
+                            dibayar penuh di muka, Diferd wajib mengganti — barang (re-produksi) atau refund uang.
+                        </p>
+                        <dl class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                            <div><dt class="text-xs text-sand-500">Obligasi</dt><dd class="tnum font-semibold text-sand-900">{{ $summary['ganti_obligasi_pcs'] }} pcs · {{ $fmt($summary['ganti_obligasi_diferd']) }}</dd></div>
+                            <div><dt class="text-xs text-sand-500">Diganti barang</dt><dd class="tnum font-semibold text-emerald-700">{{ $summary['ganti_barang_pcs'] }} pcs</dd></div>
+                            <div><dt class="text-xs text-sand-500">Direfund</dt><dd class="tnum font-semibold text-emerald-700">{{ $summary['ganti_refund_pcs'] }} pcs · {{ $fmt($summary['ganti_refund_diferd']) }}</dd></div>
+                            <div><dt class="text-xs text-sand-500">Belum ditangani</dt><dd class="tnum font-semibold {{ ($summary['ganti_sisa_pcs'] ?? 0) > 0 ? 'text-rose-700' : 'text-sand-500' }}">{{ $summary['ganti_sisa_pcs'] }} pcs · {{ $fmt($summary['ganti_sisa_diferd']) }}</dd></div>
+                        </dl>
+
+                        @if ($isAdmin && ($summary['ganti_sisa_pcs'] ?? 0) > 0)
+                            <form method="POST" action="{{ route('settlement.ganti-cash', $batch) }}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-rose-200 pt-4">
+                                @csrf
+                                <div>
+                                    <label class="block text-xs font-medium text-sand-600">Cara ganti</label>
+                                    <select name="metode" class="mt-1 rounded-lg border-sand-300 text-sm">
+                                        <option value="barang">Sudah diganti barang (re-produksi)</option>
+                                        <option value="refund">Refund uang (Diferd → 420F → TM)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-sand-600">Jumlah pcs</label>
+                                    <input type="number" name="pcs" min="1" max="{{ $summary['ganti_sisa_pcs'] }}" value="{{ $summary['ganti_sisa_pcs'] }}"
+                                           class="mt-1 w-28 rounded-lg border-sand-300 text-sm tnum">
+                                </div>
+                                <div class="flex-1 min-w-[10rem]">
+                                    <label class="block text-xs font-medium text-sand-600">Catatan (opsional)</label>
+                                    <input type="text" name="keterangan" maxlength="255" class="mt-1 w-full rounded-lg border-sand-300 text-sm">
+                                </div>
+                                <button type="submit" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">Catat ganti</button>
+                            </form>
+                            <p class="mt-2 text-xs text-sand-500">Refund: nilai diprorata dari sisa ({{ $fmt($summary['ganti_sisa_tm420']) }} ke TM bila seluruh {{ $summary['ganti_sisa_pcs'] }} pcs direfund). Barang: tak ada uang bergerak.</p>
+                        @elseif (($summary['ganti_sisa_pcs'] ?? 0) <= 0)
+                            <p class="mt-3 text-xs font-medium text-emerald-700">Semua kewajiban ganti sudah ditangani.</p>
+                        @endif
+                    </div>
+                @endif
             </div>
         @endif
 

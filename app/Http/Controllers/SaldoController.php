@@ -27,13 +27,17 @@ class SaldoController extends Controller
         $moves = collect();
 
         // MASUK — transfer dari brand (TM420 / VOOJAH) ke 420F.
+        // Jumlah negatif = refund reject cash yang 420F kembalikan ke TM → jadi uang KELUAR.
         foreach (BrandLedger::with('brand')->get() as $b) {
+            $refund = (int) $b->jumlah < 0;
             $moves->push([
                 'tanggal' => $b->tanggal,
                 'urut' => $b->created_at,
-                'arah' => 'masuk',
-                'jumlah' => (int) $b->jumlah,
-                'label' => 'Transfer dari '.($b->brand->nama ?? 'brand'),
+                'arah' => $refund ? 'keluar' : 'masuk',
+                'jumlah' => abs((int) $b->jumlah),
+                'label' => $refund
+                    ? 'Refund reject ke '.($b->brand->nama ?? 'brand')
+                    : 'Transfer dari '.($b->brand->nama ?? 'brand'),
                 'ket' => $b->keterangan,
             ]);
         }
@@ -75,13 +79,15 @@ class SaldoController extends Controller
         }
 
         // KELUAR — pembayaran cash batch di muka (420F → Diferd).
+        // Jumlah negatif = refund reject yang Diferd kembalikan ke 420F → jadi uang MASUK.
         foreach (VendorLedger::where('tipe', 'cash')->get() as $v) {
+            $refund = (int) $v->jumlah < 0;
             $moves->push([
                 'tanggal' => $v->tanggal,
                 'urut' => $v->created_at,
-                'arah' => 'keluar',
-                'jumlah' => (int) $v->jumlah,
-                'label' => 'Bayar cash Diferd (di muka)',
+                'arah' => $refund ? 'masuk' : 'keluar',
+                'jumlah' => abs((int) $v->jumlah),
+                'label' => $refund ? 'Refund reject dari Diferd' : 'Bayar cash Diferd (di muka)',
                 'ket' => $v->keterangan,
             ]);
         }

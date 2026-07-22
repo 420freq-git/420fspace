@@ -215,8 +215,9 @@ class DashboardController extends Controller
             $dibayarDiferd = $pembayaranDiferd + (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah') + $cashDiferd;
             $ditransferTM = (int) BrandLedger::sum('jumlah');
             $posisiKas = $ditransferTM - $dibayarDiferd;   // semua transfer − semua bayar (incl cash) → margin cash tercermin
-            // Sisa tagihan penjualan pakai transfer non-buy-out saja.
-            $ditransferPenjualan = $ditransferTM - (int) BrandLedger::where('keterangan', 'like', 'Buy-out sisa stok%')->sum('jumlah');
+            // Sisa tagihan penjualan pakai transfer penjualan konsinyasi saja (buy-out & cash dipisah).
+            $ditransferPenjualan = $ditransferTM - (int) BrandLedger::where('keterangan', 'like', 'Buy-out sisa stok%')
+                ->orWhere('keterangan', 'like', 'Cash batch%')->sum('jumlah');
 
             $money = [
                 'posisiKas' => $posisiKas, 'fee' => $fee,

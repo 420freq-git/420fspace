@@ -160,6 +160,83 @@ class SettlementService
     }
 
     /**
+     * Kewajiban GANTI Diferd untuk batch cash. Karena cash dibayar penuh di muka untuk seluruh
+     * qty PO, tiap pcs yang akhirnya tidak sampai diterima brand (reject QC + kurang/cacat saat
+     * terima) berarti Diferd dibayar untuk barang yang tak ada → wajib diganti (barang / refund).
+     * Dihitung HANYA untuk PO yang sudah ditutup (tahap terkirim), supaya PO yang masih jalan tidak
+     * ikut. Basis = qty PO − qty diterima = produced − received per produk+ukuran.
+     *
+     * @return array{pcs:int, diferd:int, tm420:int}
+     */
+    public function gantiCashObligasi(Batch $batch): array
+    {
+        if (! $batch->isCash()) {
+            return ['pcs' => 0, 'diferd' => 0, 'tm420' => 0];
+        }
+
+        $pos = PurchaseOrder::where('batch_id', $batch->id)
+            ->where('tahap', \App\Enums\TahapProduksi::Terkirim->value)
+            ->with(['product.category.prices', 'sizeItems'])->get();
+
+        $pcs = $diferd = $tm420 = 0;
+        foreach ($pos as $po) {
+            foreach ($po->sizeItems as $si) {
+                $ukuran = $si->ukuran->value;
+                $received = $this->stock->receivedInBatch($batch->id, $po->product_id, $ukuran);
+                $kurang = max(0, (int) $si->qty - $received);
+                if ($kurang <= 0) {
+                    continue;
+                }
+                $tier = SizeTier::forUkuran($ukuran);
+                $pcs += $kurang;
+                $diferd += $kurang * (int) ($po->product->effectiveDiferd($tier) ?? 0);
+                $tm420 += $kurang * (int) ($po->product->hargaTagihan($tier) ?? 0);
+            }
+        }
+
+        return ['pcs' => $pcs, 'diferd' => $diferd, 'tm420' => $tm420];
+    }
+
+    /**
+     * Yang sudah diselesaikan atas kewajiban ganti cash batch ini.
+     * @return array{pcs:int, barang_pcs:int, refund_pcs:int, refund_diferd:int, refund_tm420:int}
+     */
+    public function gantiCashTerselesaikan(Batch $batch): array
+    {
+        $rows = \App\Models\CashGanti::where('batch_id', $batch->id)->get();
+
+        return [
+            'pcs' => (int) $rows->sum('pcs'),
+            'barang_pcs' => (int) $rows->where('metode', 'barang')->sum('pcs'),
+            'refund_pcs' => (int) $rows->where('metode', 'refund')->sum('pcs'),
+            'refund_diferd' => (int) $rows->where('metode', 'refund')->sum('nilai_diferd'),
+            'refund_tm420' => (int) $rows->where('metode', 'refund')->sum('nilai_tm420'),
+        ];
+    }
+
+    /**
+     * Sisa kewajiban ganti yang belum diselesaikan (obligasi − yang sudah ditangani).
+     * @return array{pcs:int, diferd:int, tm420:int}
+     */
+    public function gantiCashSisa(Batch $batch): array
+    {
+        $ob = $this->gantiCashObligasi($batch);
+        $done = $this->gantiCashTerselesaikan($batch);
+        $sisaPcs = max(0, $ob['pcs'] - $done['pcs']);
+
+        if ($sisaPcs <= 0 || $ob['pcs'] <= 0) {
+            return ['pcs' => 0, 'diferd' => 0, 'tm420' => 0];
+        }
+
+        // Nilai sisa diprorata dari harga rata-rata obligasi (ukuran bisa beda harga).
+        return [
+            'pcs' => $sisaPcs,
+            'diferd' => (int) round($ob['diferd'] * $sisaPcs / $ob['pcs']),
+            'tm420' => (int) round($ob['tm420'] * $sisaPcs / $ob['pcs']),
+        ];
+    }
+
+    /**
      * Jalankan pembayaran cash batch (beli putus di muka): buat ledger Diferd (cash) + BrandLedger
      * (TM bayar 420F), tandai batch cash_dibayar. Idempoten — tidak melakukan apa-apa bila bukan
      * cash, sudah dibayar, atau belum ada PO. Return totals bila berhasil, null bila dilewati.
@@ -249,6 +326,9 @@ class SettlementService
         if ($batch->isCash()) {
             $cash = $this->cashTotals($batch);
             $terbayarCash = (int) VendorLedger::where('batch_id', $batch->id)->where('tipe', 'cash')->sum('jumlah');
+            $gantiOb = $this->gantiCashObligasi($batch);
+            $gantiDone = $this->gantiCashTerselesaikan($batch);
+            $gantiSisa = $this->gantiCashSisa($batch);
 
             return [
                 'cash' => true,
@@ -266,6 +346,16 @@ class SettlementService
                 'fee420f' => $cash['fee'],
                 'sisa_stok_value' => 0,
                 'cash_tm' => $cash['tm420'],
+                // Kewajiban ganti Diferd atas reject (batch cash dibayar penuh di muka).
+                'ganti_obligasi_pcs' => $gantiOb['pcs'],
+                'ganti_obligasi_diferd' => $gantiOb['diferd'],
+                'ganti_barang_pcs' => $gantiDone['barang_pcs'],
+                'ganti_refund_pcs' => $gantiDone['refund_pcs'],
+                'ganti_refund_diferd' => $gantiDone['refund_diferd'],
+                'ganti_refund_tm420' => $gantiDone['refund_tm420'],
+                'ganti_sisa_pcs' => $gantiSisa['pcs'],
+                'ganti_sisa_diferd' => $gantiSisa['diferd'],
+                'ganti_sisa_tm420' => $gantiSisa['tm420'],
             ];
         }
 

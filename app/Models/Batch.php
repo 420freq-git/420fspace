@@ -71,6 +71,12 @@ class Batch extends Model
         return $this->hasMany(PurchaseOrder::class);
     }
 
+    /** Penyelesaian kewajiban ganti Diferd atas reject di batch cash. */
+    public function cashGanti(): HasMany
+    {
+        return $this->hasMany(CashGanti::class);
+    }
+
     public function getTotalQtyAttribute(): int
     {
         return (int) $this->purchaseOrders->sum(fn ($po) => $po->total_qty);

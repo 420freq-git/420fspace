@@ -173,6 +173,79 @@ class SettlementController extends Controller
     }
 
     /**
+     * Penyelesaian kewajiban GANTI Diferd atas reject di batch cash (dibayar penuh di muka).
+     * 420F memilih per kasus:
+     *  - barang : Diferd re-produksi pcs yang reject. Tak ada uang bergerak (barang akhirnya lengkap);
+     *             hanya menandai kewajiban terpenuhi.
+     *  - refund : Diferd mengembalikan uang senilai reject × harga_diferd ke 420F, dan 420F
+     *             meneruskan reject × harga_tm420 ke TM. Kas 420F netral (margin unit hantu ikut balik);
+     *             kerugian riil (biaya produksi gagal) ditanggung Diferd.
+     */
+    public function gantiCash(Request $request, Batch $batch)
+    {
+        if (! $batch->isCash()) {
+            return back()->with('error', 'Batch ini bukan tipe pembayaran cash.');
+        }
+
+        $sisa = $this->settlement->gantiCashSisa($batch);
+        if ($sisa['pcs'] <= 0) {
+            return back()->with('error', 'Tidak ada kewajiban ganti yang tertunda pada batch ini.');
+        }
+
+        $data = $request->validate([
+            'metode' => ['required', 'in:barang,refund'],
+            'pcs' => ['required', 'integer', 'min:1', 'max:'.$sisa['pcs']],
+            'keterangan' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $pcs = (int) $data['pcs'];
+        // Nilai diprorata dari sisa saat ini (ukuran bisa beda harga).
+        $nilaiDiferd = $data['metode'] === 'refund' ? (int) round($sisa['diferd'] * $pcs / $sisa['pcs']) : 0;
+        $nilaiTm420 = $data['metode'] === 'refund' ? (int) round($sisa['tm420'] * $pcs / $sisa['pcs']) : 0;
+
+        DB::transaction(function () use ($batch, $data, $pcs, $nilaiDiferd, $nilaiTm420) {
+            \App\Models\CashGanti::create([
+                'batch_id' => $batch->id,
+                'brand_id' => $batch->brand_id,
+                'metode' => $data['metode'],
+                'pcs' => $pcs,
+                'nilai_diferd' => $nilaiDiferd,
+                'nilai_tm420' => $nilaiTm420,
+                'tanggal' => now(),
+                'keterangan' => $data['keterangan'] ?? null,
+            ]);
+
+            if ($data['metode'] === 'refund') {
+                // Diferd kembalikan uang → kurangi cash yang sudah dibayar (nilai negatif).
+                VendorLedger::create([
+                    'brand_id' => $batch->brand_id,
+                    'batch_id' => $batch->id,
+                    'tanggal' => now(),
+                    'tipe' => LedgerTipe::Cash->value,
+                    'jumlah' => -$nilaiDiferd,
+                    'keterangan' => 'Refund reject cash batch '.$batch->nomor_batch.' — Diferd kembalikan '.$pcs.' pcs',
+                ]);
+                // 420F teruskan refund ke TM → kurangi tagihan/uang masuk TM (nilai negatif).
+                // Keterangan diawali "Cash batch" agar tertangkap filter cash di Cashflow (fee &
+                // transfer khusus net turun sesuai refund — 420F mengembalikan margin unit hantu).
+                BrandLedger::create([
+                    'brand_id' => $batch->brand_id,
+                    'tanggal' => now(),
+                    'jumlah' => -$nilaiTm420,
+                    'keterangan' => 'Cash batch '.$batch->nomor_batch.' — refund reject ke TM ('.$pcs.' pcs)',
+                ]);
+            }
+        });
+
+        if ($data['metode'] === 'refund') {
+            return back()->with('success', 'Refund reject dicatat: Diferd kembalikan Rp '.number_format($nilaiDiferd, 0, ',', '.')
+                .', diteruskan ke TM Rp '.number_format($nilaiTm420, 0, ',', '.').' ('.$pcs.' pcs).');
+        }
+
+        return back()->with('success', $pcs.' pcs reject ditandai sudah diganti barang oleh Diferd.');
+    }
+
+    /**
      * Buy-out sisa stok batch di deadline. 420F membeli seluruh stok yang belum terjual senilai
      * harga Diferd; barangnya JADI MILIK TM420 (keluar dari stok jual 420F). Uang mengalir
      * TM420 → 420F → Diferd (kas 420F netral). Batch ditandai dibuyout sehingga sisa stoknya
