@@ -81,7 +81,9 @@ class StokController extends Controller
 
                 if ($sisaSize > 0) {
                     $tier = SizeTier::forUkuran($u->value);
-                    $harga = $pakaiTm ? $p->effectiveTm420($tier) : $p->effectiveDiferd($tier);
+                    // "Harga dari 420F" = harga yang 420F tagih ke brand: TM420 → tm420, VOOJAH → diferd
+                    // (VOOJAH ditagih modal). hargaTagihan() sudah memilih sesuai tipe brand.
+                    $harga = $pakaiTm ? $p->hargaTagihan($tier) : $p->effectiveDiferd($tier);
                     $nilai += $sisaSize * (int) ($harga ?? 0);
                 }
             }
