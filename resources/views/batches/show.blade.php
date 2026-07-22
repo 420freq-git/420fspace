@@ -235,33 +235,36 @@
                                                 </div>
 
                                                 <div class="p-5 space-y-5">
-                                                    {{-- Mockup --}}
-                                                    @if ($mockups->isNotEmpty())
-                                                        <div>
-                                                            <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">Mockup</p>
-                                                            <div class="grid grid-cols-2 gap-3">
-                                                                @foreach ($mockups as $m)
-                                                                    <a href="{{ asset('storage/'.$m->path) }}" target="_blank" class="block rounded-lg border border-sand-200 overflow-hidden hover:border-brand-400">
-                                                                        <img src="{{ asset('storage/'.$m->path) }}" alt="{{ $m->nama_asli }}" class="w-full h-48 object-contain bg-sand-50">
-                                                                        <p class="px-2 py-1.5 text-[11px] text-sand-500 truncate">{{ $m->nama_asli }}</p>
-                                                                    </a>
-                                                                @endforeach
-                                                            </div>
-                                                        </div>
-                                                    @endif
+                                                    {{-- Mockup & Detail desain — berdampingan (kiri-kanan) --}}
+                                                    @if ($mockups->isNotEmpty() || $desainImgs->isNotEmpty())
+                                                        <div class="grid sm:grid-cols-2 gap-5">
+                                                            @if ($mockups->isNotEmpty())
+                                                                <div>
+                                                                    <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">Mockup</p>
+                                                                    <div class="space-y-3">
+                                                                        @foreach ($mockups as $m)
+                                                                            <a href="{{ asset('storage/'.$m->path) }}" target="_blank" class="block rounded-lg border border-sand-200 overflow-hidden hover:border-brand-400">
+                                                                                <img src="{{ asset('storage/'.$m->path) }}" alt="{{ $m->nama_asli }}" class="w-full h-56 object-contain bg-sand-50">
+                                                                                <p class="px-2 py-1.5 text-[11px] text-sand-500 truncate">{{ $m->nama_asli }}</p>
+                                                                            </a>
+                                                                        @endforeach
+                                                                    </div>
+                                                                </div>
+                                                            @endif
 
-                                                    {{-- Detail desain — gambar artwork --}}
-                                                    @if ($desainImgs->isNotEmpty())
-                                                        <div>
-                                                            <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">Detail desain</p>
-                                                            <div class="grid grid-cols-2 gap-3">
-                                                                @foreach ($desainImgs as $d)
-                                                                    <a href="{{ asset('storage/'.$d->path) }}" target="_blank" class="block rounded-lg border border-sand-200 overflow-hidden hover:border-brand-400">
-                                                                        <img src="{{ asset('storage/'.$d->path) }}" alt="{{ $d->nama_asli }}" class="w-full h-48 object-contain bg-sand-50">
-                                                                        <p class="px-2 py-1.5 text-[11px] text-sand-500 truncate">{{ $d->nama_asli }}</p>
-                                                                    </a>
-                                                                @endforeach
-                                                            </div>
+                                                            @if ($desainImgs->isNotEmpty())
+                                                                <div>
+                                                                    <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">Detail desain</p>
+                                                                    <div class="space-y-3">
+                                                                        @foreach ($desainImgs as $d)
+                                                                            <a href="{{ asset('storage/'.$d->path) }}" target="_blank" class="block rounded-lg border border-sand-200 overflow-hidden hover:border-brand-400">
+                                                                                <img src="{{ asset('storage/'.$d->path) }}" alt="{{ $d->nama_asli }}" class="w-full h-56 object-contain bg-sand-50">
+                                                                                <p class="px-2 py-1.5 text-[11px] text-sand-500 truncate">{{ $d->nama_asli }}</p>
+                                                                            </a>
+                                                                        @endforeach
+                                                                    </div>
+                                                                </div>
+                                                            @endif
                                                         </div>
                                                     @endif
 
