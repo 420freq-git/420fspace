@@ -9,7 +9,11 @@
         <div class="px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-3">
             <div class="w-56 min-w-0">
                 <p class="text-sm font-medium text-sand-800 truncate">{{ $po->product->nama_artikel }}</p>
-                <p class="text-xs text-sand-400 tnum">{{ $po->nomor_po }}</p>
+                <a href="{{ route('purchase-orders.riwayat', [$batch, $po]) }}"
+                   class="text-xs text-brand-700 hover:underline tnum inline-flex items-center gap-1">
+                    {{ $po->nomor_po }}
+                    <svg class="h-3 w-3 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </a>
             </div>
 
             {{-- Stepper 14 tahap --}}

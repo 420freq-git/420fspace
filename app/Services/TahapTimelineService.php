@@ -51,6 +51,7 @@ class TahapTimelineService
                 'detik' => (int) abs($mulai->diffInSeconds($selesai)),
                 'oleh' => $log->user_name ?: $log->user?->name,
                 'berjalan' => false,
+                'akhir' => false,
             ];
 
             $mulai = $selesai;
@@ -67,6 +68,20 @@ class TahapTimelineService
                 'detik' => (int) abs($mulai->diffInSeconds(now())),
                 'oleh' => null,
                 'berjalan' => true,
+                'akhir' => false,
+            ];
+        } else {
+            // Baris penutup: barang sudah TERKIRIM (diterima brand) — status akhir, tanpa durasi.
+            // Tanpa ini timeline berhenti di "Siap Kirim" walau PO sudah selesai.
+            $tuntas = $logs->last()?->created_at ?? $mulai;
+            $baris[] = [
+                'tahap' => TahapProduksi::Terkirim,
+                'mulai' => $tuntas,
+                'selesai' => $tuntas,
+                'detik' => 0,
+                'oleh' => $logs->last()?->user_name ?: $logs->last()?->user?->name,
+                'berjalan' => false,
+                'akhir' => true,
             ];
         }
 

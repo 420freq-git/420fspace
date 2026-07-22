@@ -53,34 +53,47 @@
             @else
                 <ol class="divide-y divide-sand-100">
                     @foreach ($timeline['baris'] as $i => $b)
-                        <li class="px-5 py-4">
+                        @php $akhir = $b['akhir'] ?? false; @endphp
+                        <li class="px-5 py-4 {{ $akhir ? 'bg-brand-50/50' : '' }}">
                             <div class="flex items-start gap-4">
                                 <div class="flex flex-col items-center pt-0.5">
                                     <span class="grid place-items-center h-7 w-7 rounded-full text-xs font-semibold tnum
-                                                 {{ $b['berjalan'] ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-300' : 'bg-brand-100 text-brand-800' }}">
-                                        {{ $i + 1 }}
+                                                 {{ $akhir ? 'bg-brand-600 text-white' : ($b['berjalan'] ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-300' : 'bg-brand-100 text-brand-800') }}">
+                                        @if ($akhir) ✓ @else {{ $i + 1 }} @endif
                                     </span>
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $b['tahap']->badgeClasses() }}">{{ $b['tahap']->label() }}</span>
-                                        @if ($b['berjalan'])
+                                        @if ($akhir)
+                                            <span class="text-xs font-semibold text-brand-700">selesai — barang diterima</span>
+                                        @elseif ($b['berjalan'])
                                             <span class="text-xs font-medium text-amber-700">sedang berjalan</span>
                                         @endif
                                     </div>
                                     <p class="mt-1 text-xs text-sand-500 tnum">
-                                        {{ $b['mulai']->format('d/m/Y H:i') }}
-                                        @if ($b['selesai']) &rarr; {{ $b['selesai']->format('d/m/Y H:i') }} @endif
+                                        @if ($akhir)
+                                            diterima {{ $b['mulai']->format('d/m/Y H:i') }}
+                                        @else
+                                            {{ $b['mulai']->format('d/m/Y H:i') }}
+                                            @if ($b['selesai']) &rarr; {{ $b['selesai']->format('d/m/Y H:i') }} @endif
+                                        @endif
                                         @if ($b['oleh']) <span class="text-sand-400">· dipindahkan {{ $b['oleh'] }}</span> @endif
                                     </p>
-                                    <div class="mt-2 h-1.5 w-full rounded-full bg-sand-100 overflow-hidden">
-                                        <div class="h-full rounded-full {{ $b['berjalan'] ? 'bg-amber-400' : 'bg-brand-500' }}"
-                                             style="width: {{ max(2, round($b['detik'] / $terlama * 100)) }}%"></div>
-                                    </div>
+                                    @unless ($akhir)
+                                        <div class="mt-2 h-1.5 w-full rounded-full bg-sand-100 overflow-hidden">
+                                            <div class="h-full rounded-full {{ $b['berjalan'] ? 'bg-amber-400' : 'bg-brand-500' }}"
+                                                 style="width: {{ max(2, round($b['detik'] / $terlama * 100)) }}%"></div>
+                                        </div>
+                                    @endunless
                                 </div>
                                 <div class="text-right shrink-0">
-                                    <p class="text-sm font-semibold text-sand-900">{{ $d($b['detik']) }}</p>
-                                    <p class="text-xs text-sand-400">{{ $timeline['total_detik'] > 0 ? round($b['detik'] / $timeline['total_detik'] * 100) : 0 }}%</p>
+                                    @if ($akhir)
+                                        <p class="text-sm font-semibold text-brand-700">Tuntas</p>
+                                    @else
+                                        <p class="text-sm font-semibold text-sand-900">{{ $d($b['detik']) }}</p>
+                                        <p class="text-xs text-sand-400">{{ $timeline['total_detik'] > 0 ? round($b['detik'] / $timeline['total_detik'] * 100) : 0 }}%</p>
+                                    @endif
                                 </div>
                             </div>
                         </li>
