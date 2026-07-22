@@ -165,4 +165,17 @@
             </div>
         @endif
     </div>
+
+    {{-- Pertahankan posisi scroll setelah update tahap (form me-reload halaman). --}}
+    <script>
+        (function () {
+            if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+            var y = sessionStorage.getItem('poScroll');
+            if (y === null) return;
+            sessionStorage.removeItem('poScroll');
+            var restore = function () { window.scrollTo(0, parseInt(y, 10)); };
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', restore);
+            else restore();
+        })();
+    </script>
 </x-app-layout>

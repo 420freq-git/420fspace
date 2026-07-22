@@ -325,7 +325,7 @@
                                         @if ($canStatus)
                                             <form method="POST" action="{{ route('purchase-orders.status', [$batch, $po]) }}">
                                                 @csrf @method('PATCH')
-                                                <select name="tahap" onchange="this.form.submit()"
+                                                <select name="tahap" onchange="try{sessionStorage.setItem('poScroll',window.scrollY);}catch(e){} this.form.submit()"
                                                         class="rounded-lg border-sand-300 text-xs py-1.5 pr-8 focus:border-brand-600 focus:ring-brand-600">
                                                     @foreach (\App\Enums\TahapProduksi::cases() as $st)
                                                         <option value="{{ $st->value }}" @selected($po->tahap === $st)>{{ $st->step() }}. {{ $st->label() }}</option>
@@ -377,4 +377,17 @@
             @endif
         </div>
     </div>
+
+    {{-- Pertahankan posisi scroll setelah update tahap (form me-reload halaman). --}}
+    <script>
+        (function () {
+            if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+            var y = sessionStorage.getItem('poScroll');
+            if (y === null) return;
+            sessionStorage.removeItem('poScroll');
+            var restore = function () { window.scrollTo(0, parseInt(y, 10)); };
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', restore);
+            else restore();
+        })();
+    </script>
 </x-app-layout>

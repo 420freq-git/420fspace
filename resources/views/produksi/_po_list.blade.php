@@ -39,7 +39,7 @@
             @if ($canUpdate && ! $tahap->isDone())
                 <form method="POST" action="{{ route('purchase-orders.status', [$batch, $po]) }}" class="shrink-0">
                     @csrf @method('PATCH')
-                    <select name="tahap" onchange="this.form.submit()"
+                    <select name="tahap" onchange="try{sessionStorage.setItem('poScroll',window.scrollY);}catch(e){} this.form.submit()"
                             class="rounded-lg border-sand-300 text-xs py-1.5 pr-8 focus:border-brand-600 focus:ring-brand-600">
                         @foreach (\App\Enums\TahapProduksi::cases() as $t)
                             <option value="{{ $t->value }}" @selected($po->tahap === $t)>{{ $t->step() }}. {{ $t->label() }}</option>
