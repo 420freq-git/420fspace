@@ -101,9 +101,14 @@ class SaldoController extends Controller
         $totalMasuk = (int) $moves->where('arah', 'masuk')->sum('jumlah');
         $totalKeluar = (int) $moves->where('arah', 'keluar')->sum('jumlah');
 
-        // Fee 420F = markup dari pesanan lunas (uang yang jadi milik 420F, bukan titipan).
-        $fee = (int) Sale::whereHas('order', fn ($o) => $o->where('status', 'lunas'))
+        // Fee 420F = markup pesanan lunas + margin cash (di muka) + margin buy-out (invoice − hak).
+        $feeJual = (int) Sale::whereHas('order', fn ($o) => $o->where('status', 'lunas'))
             ->whereNotNull('harga_tm420')->sum(DB::raw('qty * (harga_tm420 - harga_diferd)'));
+        $marginCash = (int) BrandLedger::where('keterangan', 'like', 'Cash batch%')->sum('jumlah')
+            - (int) VendorLedger::where('tipe', 'cash')->sum('jumlah');
+        $marginBuyout = (int) \App\Models\Invoice::where('jumlah_manual', '>', 0)->sum('jumlah_manual')
+            - (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah');
+        $fee = $feeJual + $marginCash + $marginBuyout;
 
         return view('saldo.index', [
             'rows' => $rows,

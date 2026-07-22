@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\SizeTier;
 use App\Models\Batch;
 use App\Models\BrandLedger;
+use App\Models\Invoice;
 use App\Models\Penarikan;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -32,12 +33,23 @@ class SettlementService
         return (int) Sale::where('batch_id', $batchId)->sold()->sum(DB::raw('qty * harga_diferd'));
     }
 
-    /** Fee 420F dari penjualan batch ini (hanya pesanan lunas). */
+    /** Fee 420F dari batch ini = margin penjualan lunas + margin buy-out (invoice TM − hak Diferd). */
     public function fee420f(int $batchId): int
     {
-        return (int) Sale::where('batch_id', $batchId)
+        $jual = (int) Sale::where('batch_id', $batchId)
             ->whereHas('order', fn ($o) => $o->where('status', 'lunas'))
             ->whereNotNull('harga_tm420')->sum(DB::raw('qty * (harga_tm420 - harga_diferd)'));
+
+        // Buy-out: 420F tagih TM di harga_tm420 (invoice) tapi bayar Diferd di harga_diferd (hak).
+        $buyoutMargin = $this->buyoutInvoiceTm($batchId) - $this->buyout($batchId);
+
+        return $jual + $buyoutMargin;
+    }
+
+    /** Total tagihan invoice buy-out (harga tm420) untuk batch ini. */
+    public function buyoutInvoiceTm(int $batchId): int
+    {
+        return (int) Invoice::where('batch_id', $batchId)->where('jumlah_manual', '>', 0)->sum('jumlah_manual');
     }
 
     /** Pembayaran yang ditandai langsung ke batch ini (tidak termasuk deposit & buy-out). */
