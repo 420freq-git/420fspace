@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\Role;
 use App\Models\BrandLedger;
+use App\Models\Invoice;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -33,8 +34,19 @@ class RekonsiliasiController extends Controller
                 + (int) $o->items->sum(fn ($s) => $s->qty * ($s->harga_tm420 ?? 0));
         }
 
-        // Transfer diterima per minggu (kecuali buy-out, yang bukan pembayaran penjualan).
+        // Tagihan buy-out (invoice manual) — tagihan sah ke TM, dibukukan di minggu terbitnya.
+        // Tanpa ini, pembayaran invoice buy-out di sisi transfer tampak sebagai kelebihan bayar TM.
+        $buyoutInvoices = Invoice::where('jumlah_manual', '>', 0)
+            ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->get();
+        foreach ($buyoutInvoices as $inv) {
+            $key = $this->pekan($inv->tanggal_terbit);
+            $tagihanMinggu[$key] = ($tagihanMinggu[$key] ?? 0) + (int) $inv->jumlah_manual;
+        }
+
+        // Transfer diterima per minggu, KECUALI yang bukan pembayaran penjualan/tagihan mingguan:
+        // buy-out lama (BrandLedger langsung) & cash batch (dibayar penuh di muka, sales-nya dikecualikan).
         $transfers = BrandLedger::where('keterangan', 'not like', 'Buy-out sisa stok%')
+            ->where('keterangan', 'not like', 'Cash batch%')
             ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->get();
 
         $transferMinggu = [];

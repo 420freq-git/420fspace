@@ -57,7 +57,8 @@
         </div>
 
         <p class="text-xs text-sand-400">
-            Tagihan cair = pesanan yang jadi lunas minggu itu (× harga ke 420F). Transfer buy-out tidak dihitung di sini.
+            Tagihan cair = pesanan yang jadi lunas minggu itu (× harga ke 420F) + invoice buy-out (di minggu terbitnya).
+            Cash batch (dibayar penuh di muka) tidak masuk hitungan ini.
             Karena TM sering bayar berselang (mis. Minggu untuk penjualan seminggu sebelumnya), lihat <span class="font-medium">tunggakan kumulatif</span> untuk posisi sebenarnya.
         </p>
     </div>
