@@ -59,12 +59,12 @@
     .grid .total td { background: #ebf1e3; font-weight: bold; border-top: 1.5px solid #1b1d19; }
     .grid .total .g { color: #2e5a22; }
 
-    /* mockups & desain — beri ruang lebih besar supaya gambar tak mungil */
+    /* mockups & desain — gambar mengisi penuh lebar cell (upload sesuai rasio cell) */
     .mock { table-layout: fixed; }
-    .mock td { border: 1px dashed #c7c5b9; text-align: center; vertical-align: middle; padding: 10px; height: 300px; }
-    .mock img { max-height: 280px; max-width: 49%; vertical-align: middle; }
-    .mock .single img { max-width: 96%; }
-    .cap { font-size: 7px; color: #6e7267; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px; }
+    .mock td { border: 1px dashed #c7c5b9; text-align: center; vertical-align: middle; padding: 6px; height: 252px; }
+    .mock img { display: block; width: 100%; height: auto; max-height: 220px; margin: 0 auto; }
+    .mock .twin img { display: inline-block; width: 48.5%; }   /* dua mockup berdampingan */
+    .cap { font-size: 7px; color: #6e7267; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
 
     /* note & footer */
     .note { border-left: 3px solid #2e5a22; background: #ebf1e3; padding: 7px 11px; font-size: 9.5px; margin-top: 6px; }
@@ -209,7 +209,7 @@
             <div class="sec-h">Mockups &amp; desain</div>
             <table class="mock">
                 <tr>
-                    <td style="width:55%" class="{{ $mockups->count() === 1 ? 'single' : '' }}">
+                    <td style="width:55%" class="{{ $mockups->count() > 1 ? 'twin' : '' }}">
                         @if ($mockups->count())
                             @foreach ($mockups->take(2) as $mk)<img src="{{ $img($mk) }}">@endforeach
                             <div class="cap">Mockup{{ $mockups->count() > 1 ? ' — tampak depan &amp; belakang' : '' }}</div>
@@ -217,7 +217,7 @@
                             <div class="cap">Mockup belum ada</div>
                         @endif
                     </td>
-                    <td style="width:45%" class="single">
+                    <td style="width:45%">
                         @if ($desain)
                             <img src="{{ $img($desain) }}">
                             <div class="cap">Detail desain</div>
