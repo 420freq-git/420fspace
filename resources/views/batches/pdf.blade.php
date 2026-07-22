@@ -59,11 +59,12 @@
     .grid .total td { background: #ebf1e3; font-weight: bold; border-top: 1.5px solid #1b1d19; }
     .grid .total .g { color: #2e5a22; }
 
-    /* mockups */
-    .mock td { border: 1px dashed #c7c5b9; text-align: center; vertical-align: middle; padding: 8px; height: 200px; }
-    .mock img { max-height: 182px; max-width: 47%; }
-    .mock .single img { max-width: 90%; }
-    .cap { font-size: 7px; color: #6e7267; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 5px; }
+    /* mockups & desain — beri ruang lebih besar supaya gambar tak mungil */
+    .mock { table-layout: fixed; }
+    .mock td { border: 1px dashed #c7c5b9; text-align: center; vertical-align: middle; padding: 10px; height: 300px; }
+    .mock img { max-height: 280px; max-width: 49%; vertical-align: middle; }
+    .mock .single img { max-width: 96%; }
+    .cap { font-size: 7px; color: #6e7267; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px; }
 
     /* note & footer */
     .note { border-left: 3px solid #2e5a22; background: #ebf1e3; padding: 7px 11px; font-size: 9.5px; margin-top: 6px; }
@@ -203,28 +204,30 @@
             </tbody>
         </table>
 
-        {{-- Mockups & desain --}}
-        <div class="sec-h">Mockups &amp; desain</div>
-        <table class="mock">
-            <tr>
-                <td style="width:60%">
-                    @if ($mockups->count())
-                        @foreach ($mockups->take(2) as $mk)<img src="{{ $img($mk) }}">@endforeach
-                        <div class="cap">Mockup — tampak depan &amp; belakang</div>
-                    @else
-                        <div class="cap">Mockup belum ada</div>
-                    @endif
-                </td>
-                <td style="width:40%" class="single">
-                    @if ($desain)
-                        <img src="{{ $img($desain) }}">
-                        <div class="cap">Detail desain</div>
-                    @else
-                        <div class="cap">Detail desain belum ada</div>
-                    @endif
-                </td>
-            </tr>
-        </table>
+        {{-- Mockups & desain — jaga satu blok agar tak terpotong antar-halaman --}}
+        <div style="page-break-inside: avoid;">
+            <div class="sec-h">Mockups &amp; desain</div>
+            <table class="mock">
+                <tr>
+                    <td style="width:55%" class="{{ $mockups->count() === 1 ? 'single' : '' }}">
+                        @if ($mockups->count())
+                            @foreach ($mockups->take(2) as $mk)<img src="{{ $img($mk) }}">@endforeach
+                            <div class="cap">Mockup{{ $mockups->count() > 1 ? ' — tampak depan &amp; belakang' : '' }}</div>
+                        @else
+                            <div class="cap">Mockup belum ada</div>
+                        @endif
+                    </td>
+                    <td style="width:45%" class="single">
+                        @if ($desain)
+                            <img src="{{ $img($desain) }}">
+                            <div class="cap">Detail desain</div>
+                        @else
+                            <div class="cap">Detail desain belum ada</div>
+                        @endif
+                    </td>
+                </tr>
+            </table>
+        </div>
 
         {{-- Catatan --}}
         <div class="note"><b>Catatan produksi</b><br>{{ $po->note ?: '—' }}</div>

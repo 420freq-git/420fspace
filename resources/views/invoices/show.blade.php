@@ -57,6 +57,33 @@
             </div>
         @endif
 
+        {{-- Bukti transfer — TM unggah sebagai konfirmasi pembayaran; semua yang bisa lihat invoice bisa membukanya --}}
+        <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5" x-data="{ open: false }">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400">Bukti transfer</h2>
+                    @if ($invoice->bukti_transfer)
+                        <a href="{{ route('invoices.bukti', $invoice) }}" target="_blank" class="mt-1 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
+                            Lihat bukti yang diunggah
+                        </a>
+                    @else
+                        <p class="mt-1 text-sm text-sand-400">Belum ada bukti transfer.</p>
+                    @endif
+                </div>
+                <button type="button" @click="open = !open" class="rounded-lg border border-sand-300 bg-white px-3 py-1.5 text-xs font-medium text-sand-700 hover:bg-sand-50">{{ $invoice->bukti_transfer ? 'Ganti bukti' : 'Unggah bukti' }}</button>
+            </div>
+            <form x-show="open" x-cloak method="POST" action="{{ route('invoices.bukti.upload', $invoice) }}" enctype="multipart/form-data" class="mt-3 flex flex-wrap items-end gap-3 border-t border-sand-100 pt-3">
+                @csrf
+                <div>
+                    <label class="block text-xs font-medium text-sand-600">File bukti (JPG/PNG/PDF, maks 5MB)</label>
+                    <input type="file" name="bukti_transfer" accept=".jpg,.jpeg,.png,.pdf" required class="mt-1 block text-sm text-sand-600 file:mr-2 file:rounded file:border-0 file:bg-sand-100 file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-sand-200">
+                </div>
+                <button type="submit" class="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">Simpan bukti</button>
+                @error('bukti_transfer') <p class="w-full text-xs text-red-600">{{ $message }}</p> @enderror
+            </form>
+        </div>
+
         {{-- Daftar pesanan --}}
         <div class="rounded-xl border border-sand-200 bg-white shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-sand-200 flex items-center justify-between">

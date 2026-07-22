@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['brand_id', 'batch_id', 'nomor', 'tanggal_terbit', 'status', 'jumlah_manual', 'pcs_manual', 'tanggal_bayar', 'catatan'])]
+#[Fillable(['brand_id', 'batch_id', 'nomor', 'tanggal_terbit', 'status', 'jumlah_manual', 'pcs_manual', 'tanggal_bayar', 'bukti_transfer', 'catatan'])]
 class Invoice extends Model
 {
     use Auditable;

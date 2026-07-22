@@ -119,22 +119,27 @@
                                             @if (! $p->bukti_transfer && ! $p->bukti_invoice)
                                                 <span class="text-sand-300">belum ada</span>
                                             @endif
-                                            <button type="button" @click="open=!open" class="text-sand-500 hover:text-sand-800">{{ ($p->bukti_transfer || $p->bukti_invoice) ? 'Ubah…' : 'Unggah…' }}</button>
+                                            {{-- Unggah bukti hanya untuk 420F; Diferd cukup melihat. --}}
+                                            @if ($isAdmin)
+                                                <button type="button" @click="open=!open" class="text-sand-500 hover:text-sand-800">{{ ($p->bukti_transfer || $p->bukti_invoice) ? 'Ubah…' : 'Unggah…' }}</button>
+                                            @endif
                                         </div>
-                                        <form x-show="open" x-cloak method="POST" action="{{ route('penarikan.bukti.upload', $p) }}" enctype="multipart/form-data" class="mt-2 space-y-1.5">
-                                            @csrf
-                                            <div>
-                                                <label class="block text-[11px] text-sand-500">Bukti transfer</label>
-                                                <input type="file" name="bukti_transfer" accept=".jpg,.jpeg,.png,.pdf" class="block w-full text-xs text-sand-600 file:mr-2 file:rounded file:border-0 file:bg-sand-100 file:px-2 file:py-1 file:text-xs">
-                                            </div>
-                                            <div>
-                                                <label class="block text-[11px] text-sand-500">Invoice</label>
-                                                <input type="file" name="bukti_invoice" accept=".jpg,.jpeg,.png,.pdf" class="block w-full text-xs text-sand-600 file:mr-2 file:rounded file:border-0 file:bg-sand-100 file:px-2 file:py-1 file:text-xs">
-                                            </div>
-                                            <button type="submit" class="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">Simpan</button>
-                                            @error('bukti_transfer') <p class="text-[11px] text-red-600">{{ $message }}</p> @enderror
-                                            @error('bukti_invoice') <p class="text-[11px] text-red-600">{{ $message }}</p> @enderror
-                                        </form>
+                                        @if ($isAdmin)
+                                            <form x-show="open" x-cloak method="POST" action="{{ route('penarikan.bukti.upload', $p) }}" enctype="multipart/form-data" class="mt-2 space-y-1.5">
+                                                @csrf
+                                                <div>
+                                                    <label class="block text-[11px] text-sand-500">Bukti transfer</label>
+                                                    <input type="file" name="bukti_transfer" accept=".jpg,.jpeg,.png,.pdf" class="block w-full text-xs text-sand-600 file:mr-2 file:rounded file:border-0 file:bg-sand-100 file:px-2 file:py-1 file:text-xs">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[11px] text-sand-500">Invoice</label>
+                                                    <input type="file" name="bukti_invoice" accept=".jpg,.jpeg,.png,.pdf" class="block w-full text-xs text-sand-600 file:mr-2 file:rounded file:border-0 file:bg-sand-100 file:px-2 file:py-1 file:text-xs">
+                                                </div>
+                                                <button type="submit" class="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">Simpan</button>
+                                                @error('bukti_transfer') <p class="text-[11px] text-red-600">{{ $message }}</p> @enderror
+                                                @error('bukti_invoice') <p class="text-[11px] text-red-600">{{ $message }}</p> @enderror
+                                            </form>
+                                        @endif
                                     </td>
                                     <td class="px-5 py-3 text-right">
                                         @if ($p->status === 'diajukan')

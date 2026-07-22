@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\Order;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class InvoiceController extends Controller
 {
@@ -109,6 +110,34 @@ class InvoiceController extends Controller
         ]);
 
         return back()->with('success', 'Invoice '.$invoice->nomor.' ditandai lunas & penerimaan dicatat di cashflow.');
+    }
+
+    /** TM (atau 420F) unggah bukti transfer pembayaran invoice. */
+    public function uploadBukti(Request $request, Invoice $invoice)
+    {
+        $this->authorizeView($request, $invoice);
+
+        $request->validate([
+            'bukti_transfer' => ['required', 'file', 'max:5120', 'mimes:jpg,jpeg,png,pdf'],
+        ]);
+
+        if ($invoice->bukti_transfer) {
+            Storage::disk('public')->delete($invoice->bukti_transfer);
+        }
+        $invoice->update([
+            'bukti_transfer' => $request->file('bukti_transfer')->store("invoices/{$invoice->id}", 'public'),
+        ]);
+
+        return back()->with('success', 'Bukti transfer diunggah.');
+    }
+
+    public function bukti(Request $request, Invoice $invoice)
+    {
+        $this->authorizeView($request, $invoice);
+
+        abort_unless($invoice->bukti_transfer && Storage::disk('public')->exists($invoice->bukti_transfer), 404, 'File tidak ditemukan.');
+
+        return Storage::disk('public')->download($invoice->bukti_transfer);
     }
 
     public function destroy(Invoice $invoice)

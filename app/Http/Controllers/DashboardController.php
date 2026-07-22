@@ -171,10 +171,14 @@ class DashboardController extends Controller
         $sold = fn () => Sale::when($brandId, fn ($q) => $q->where('brand_id', $brandId))->sold();
 
         if (in_array($user->role, [Role::Tm420, Role::Voojah], true)) {
-            $tagihan = (int) $sold()->whereNotNull('harga_tm420')->sum(DB::raw('qty * harga_tm420'));
-            // Kecualikan transfer buy-out (bukan pembayaran penjualan) dari sisa tagihan penjualan.
+            $saleTagihan = (int) $sold()->whereNotNull('harga_tm420')->sum(DB::raw('qty * harga_tm420'));
+            // Tagihan buy-out (invoice) juga kewajiban TM — tanpa ini pembayarannya tampak sbg saldo minus.
+            $buyoutTagihan = (int) \App\Models\Invoice::where('brand_id', $brandId)->where('jumlah_manual', '>', 0)->sum('jumlah_manual');
+            $tagihan = $saleTagihan + $buyoutTagihan;
+            // Kecualikan transfer buy-out lama & cash batch (bukan pembayaran penjualan mingguan).
             $ditransfer = (int) BrandLedger::where('brand_id', $brandId)
-                ->where('keterangan', 'not like', 'Buy-out sisa stok%')->sum('jumlah');
+                ->where('keterangan', 'not like', 'Buy-out sisa stok%')
+                ->where('keterangan', 'not like', 'Cash batch%')->sum('jumlah');
             $sisaTagihan = $tagihan - $ditransfer;
 
             $money = ['tagihan' => $tagihan, 'ditransfer' => $ditransfer, 'sisa' => $sisaTagihan];

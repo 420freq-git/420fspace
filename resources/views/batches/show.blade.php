@@ -185,8 +185,10 @@
                         <tbody class="divide-y divide-sand-100">
                             @foreach ($pos as $po)
                                 @php
-                                    $mockups = $po->product->files->where('tipe', \App\Enums\ProductFileType::Mockup->value);
-                                    $desains = $po->product->files->whereIn('tipe', [\App\Enums\ProductFileType::Desain->value, \App\Enums\ProductFileType::Mentahan->value]);
+                                    $mockups = $po->product->filesOfType(\App\Enums\ProductFileType::Mockup);
+                                    // Desain berupa gambar → ditampilkan sebagai preview; sisanya (mentahan / desain non-gambar) sebagai unduhan.
+                                    $desainImgs = $po->product->filesOfType(\App\Enums\ProductFileType::Desain)->filter(fn ($f) => $f->is_image)->values();
+                                    $fileLain = $po->product->files->filter(fn ($f) => $f->tipe === \App\Enums\ProductFileType::Mentahan || ($f->tipe === \App\Enums\ProductFileType::Desain && ! $f->is_image))->values();
                                 @endphp
                                 <tr class="hover:bg-sand-50/50">
                                     <td class="px-5 py-3.5 font-medium text-sand-900 tnum">{{ $po->nomor_po }}</td>
@@ -248,9 +250,24 @@
                                                         </div>
                                                     @endif
 
-                                                    {{-- Detail desain (snapshot PO) --}}
+                                                    {{-- Detail desain — gambar artwork --}}
+                                                    @if ($desainImgs->isNotEmpty())
+                                                        <div>
+                                                            <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">Detail desain</p>
+                                                            <div class="grid grid-cols-2 gap-3">
+                                                                @foreach ($desainImgs as $d)
+                                                                    <a href="{{ asset('storage/'.$d->path) }}" target="_blank" class="block rounded-lg border border-sand-200 overflow-hidden hover:border-brand-400">
+                                                                        <img src="{{ asset('storage/'.$d->path) }}" alt="{{ $d->nama_asli }}" class="w-full h-48 object-contain bg-sand-50">
+                                                                        <p class="px-2 py-1.5 text-[11px] text-sand-500 truncate">{{ $d->nama_asli }}</p>
+                                                                    </a>
+                                                                @endforeach
+                                                            </div>
+                                                        </div>
+                                                    @endif
+
+                                                    {{-- Ukuran desain (snapshot PO) --}}
                                                     <div>
-                                                        <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">Detail desain</p>
+                                                        <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">Ukuran desain</p>
                                                         <dl class="grid sm:grid-cols-3 gap-3 text-sm">
                                                             @foreach (['Depan' => $po->desain_depan, 'Belakang' => $po->desain_belakang, 'Lengan' => $po->desain_lengan] as $lbl => $val)
                                                                 <div class="rounded-lg border border-sand-200 p-3">
@@ -279,12 +296,12 @@
                                                         @endif
                                                     </div>
 
-                                                    {{-- File desain --}}
-                                                    @if ($desains->isNotEmpty())
+                                                    {{-- File mentahan / desain non-gambar --}}
+                                                    @if ($fileLain->isNotEmpty())
                                                         <div>
                                                             <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">File desain / mentahan</p>
                                                             <div class="space-y-1.5">
-                                                                @foreach ($desains as $f)
+                                                                @foreach ($fileLain as $f)
                                                                     <a href="{{ route('product-files.download', $f) }}" class="flex items-center gap-2 rounded-lg border border-sand-200 px-3 py-2 text-sm text-sand-700 hover:border-brand-300 hover:bg-brand-50/40">
                                                                         <svg class="h-4 w-4 text-sand-400" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
                                                                         <span class="flex-1 truncate">{{ $f->nama_asli }}</span>

@@ -139,6 +139,8 @@ Route::middleware('auth')->group(function () {
         Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
         Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
         Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
+        Route::get('invoices/{invoice}/bukti', [InvoiceController::class, 'bukti'])->name('invoices.bukti');
+        Route::post('invoices/{invoice}/bukti', [InvoiceController::class, 'uploadBukti'])->name('invoices.bukti.upload');
     });
     Route::middleware('role:420f')->group(function () {
         Route::post('invoices/generate', [InvoiceController::class, 'generate'])->name('invoices.generate');
