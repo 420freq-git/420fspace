@@ -43,11 +43,11 @@
     .design .big { font-size: 15px; font-weight: bold; }
     .design .off { color: #9a9e92; }
 
-    /* label chips */
-    .chips td { padding: 4px 2px; font-size: 9px; }
-    .chip { display: inline-block; border: 0.75px solid #c7c5b9; border-radius: 8px; padding: 3px 9px; font-weight: bold; }
-    .chip .on { color: #2e5a22; }
-    .chip .off { color: #9a9e92; font-weight: normal; }
+    /* label & aksesoris — pil terisi (ADA) vs redup (TIDAK) agar jelas terbaca */
+    .chips td { padding: 4px 2px; }
+    .chip { display: inline-block; border-radius: 9px; padding: 4px 11px; font-size: 9px; margin: 0 5px 6px 0; }
+    .chip.yes { background: #2e5a22; color: #ffffff; font-weight: bold; }
+    .chip.no { background: #f4f2eb; color: #a7aa9f; border: 0.75px solid #dcd9cc; }
 
     /* size grid */
     .grid th { background: #f4f2eb; color: #6e7267; border: 0.75px solid #e4e2d8; padding: 5px 6px;
@@ -79,7 +79,9 @@
         if (! is_file($abs)) return null;
         return 'data:'.mime_content_type($abs).';base64,'.base64_encode(file_get_contents($abs));
     };
-    $chip = fn ($label, $on) => '<span class="chip">'.$label.': '.($on ? '<span class="on">&#10003;</span>' : '<span class="off">&ndash;</span>').'</span>';
+    $chip = fn ($label, $on) => $on
+        ? '<span class="chip yes">&#10003; '.$label.'</span>'
+        : '<span class="chip no">&#10007; '.$label.'</span>';
     $ukurans = \App\Enums\Ukuran::cases();
     $jenises = \App\Enums\JenisProduksi::cases();
 @endphp
