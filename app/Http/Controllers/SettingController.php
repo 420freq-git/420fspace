@@ -17,7 +17,7 @@ class SettingController extends Controller
         'sales', 'orders', 'invoices',
         'pengiriman_items', 'pengiriman',
         'po_size_items', 'purchase_orders', 'batches',
-        'vendor_ledger', 'brand_ledger', 'penarikan',
+        'vendor_ledger', 'brand_ledger', 'penarikan', 'cash_ganti',
         'import_logs', 'audit_logs',
     ];
 
