@@ -174,10 +174,12 @@ class ProductController extends Controller
         return redirect()->route('products.index')->with('success', 'Produk dihapus.');
     }
 
-    public function destroyFile(ProductFile $file)
+    public function destroyFile(Request $request, ProductFile $file)
     {
-        Storage::disk('public')->delete($file->path);
         $product = $file->product;
+        $this->authorizeView($request, $product);   // TM/VOOJAH hanya boleh file produk brand-nya
+
+        Storage::disk('public')->delete($file->path);
         $file->delete();
 
         return redirect()->route('products.edit', $product)->with('success', 'File dihapus.');

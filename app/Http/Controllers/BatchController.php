@@ -106,6 +106,7 @@ class BatchController extends Controller
     /** TM420 mengajukan ulang batch yang ditolak setelah diperbaiki. */
     public function reajukan(Request $request, Batch $batch)
     {
+        $this->authorizeView($request, $batch);   // TM/VOOJAH hanya boleh batch brand-nya
         if ($batch->status !== BatchStatus::Ditolak) {
             return back()->with('error', 'Hanya batch yang ditolak yang bisa diajukan ulang.');
         }

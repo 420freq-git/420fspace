@@ -157,6 +157,7 @@ class OrderController extends Controller
 
     public function updateStatus(Request $request, Order $order)
     {
+        $this->ensureOwn($request, $order);
         $data = $request->validate(['status' => ['required', new Enum(OrderStatus::class)]]);
         $status = OrderStatus::from($data['status']);
 
@@ -176,11 +177,21 @@ class OrderController extends Controller
         return back()->with('success', "Status pesanan {$order->nomor_pesanan} → {$status->label()}.");
     }
 
-    public function destroy(Order $order)
+    public function destroy(Request $request, Order $order)
     {
+        $this->ensureOwn($request, $order);
         $order->delete(); // cascade items → stok kembali
 
         return redirect()->route('orders.index')->with('success', 'Pesanan dihapus, stok dikembalikan.');
+    }
+
+    /** TM420/VOOJAH hanya boleh menyentuh pesanan brand-nya sendiri (cegah IDOR lintas-brand). */
+    private function ensureOwn(Request $request, Order $order): void
+    {
+        $user = $request->user();
+        if (in_array($user->role, [Role::Tm420, Role::Voojah], true) && $user->brand_id && $order->brand_id !== $user->brand_id) {
+            abort(403, 'Pesanan ini bukan milik brand Anda.');
+        }
     }
 
     /** Ubah status banyak pesanan sekaligus (mis. tandai dikirim). */

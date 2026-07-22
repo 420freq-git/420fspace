@@ -49,6 +49,7 @@ class MonitoringController extends Controller
     /** Tandai sudah dicek: catat keterangan, tambah hitungan, reset jadwal cek ulang. */
     public function sudahDicek(Request $request, Order $order)
     {
+        $this->ensureOwn($request, $order);
         $data = $request->validate(['keterangan' => ['nullable', 'string', 'max:255']]);
 
         $order->update([
