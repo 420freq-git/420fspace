@@ -147,14 +147,14 @@
                 <label for="mockups" class="block text-sm font-medium text-sand-700">Mockup <span class="text-sand-400 font-normal">(depan &amp; belakang)</span></label>
                 <input type="file" name="mockups[]" id="mockups" multiple accept="image/*"
                        class="mt-1 block w-full text-sm text-sand-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100">
-                <p class="mt-1 text-xs text-sand-400">Gambar, maks 5 MB.</p>
+                <p class="mt-1 text-xs text-sand-400">Gambar, maks 5 MB. Agar penuh di Master PO, ukuran ideal <span class="font-medium text-sand-500">1400 × 800 px</span> (landscape).</p>
                 @error('mockups.*') <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
             <div>
                 <label for="desains" class="block text-sm font-medium text-sand-700">Desain <span class="text-sand-400 font-normal">(artwork/detail)</span></label>
                 <input type="file" name="desains[]" id="desains" multiple accept="image/*"
                        class="mt-1 block w-full text-sm text-sand-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100">
-                <p class="mt-1 text-xs text-sand-400">Gambar, maks 5 MB.</p>
+                <p class="mt-1 text-xs text-sand-400">Gambar, maks 5 MB. Agar penuh di Master PO, ukuran ideal <span class="font-medium text-sand-500">1150 × 800 px</span> (landscape).</p>
                 @error('desains.*') <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
         </div>
