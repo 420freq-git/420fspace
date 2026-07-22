@@ -80,13 +80,16 @@ class DashboardController extends Controller
         $batchRows = $batchRows->sortBy(fn ($r) => $r['sisaHari'] ?? PHP_INT_MAX)->values();
         $poRows = $poRows->sortBy(fn ($r) => $r['sisaHari'] ?? PHP_INT_MAX)->values();
 
-        $batchAktif = $activeBatches->count();
+        // "Batch aktif" di kartu = yang PRODUKSINYA masih berjalan (belum semua PO terkirim).
+        // Batch berstatus 'aktif' tapi sudah selesai produksi tidak dihitung "berjalan".
+        $batchAktif = $batchRows->where('selesai', false)->count();
         $batchPerhatian = $batchRows->filter(fn ($r) => $r['telat'] || $r['mepet'])->count();
         $poProduksi = $poRows->filter(fn ($r) => ! $r['ready'])->count();
         $poTelat = $poRows->filter(fn ($r) => $r['telat'] || $r['mepet'])->count();
         $poReady = $poRows->filter(fn ($r) => $r['ready'])->count();
 
-        // ===== Stok per produk =====
+        // ===== Stok per produk — HARUS sama dgn halaman Stok: sisa jual = DITERIMA − terjual − buy-out.
+        // (Sebelumnya pakai qty PRODUKSI dan tak mengurangi buy-out/cash → stok siap jual membengkak.)
         $producedByProduct = DB::table('po_size_items as psi')
             ->join('purchase_orders as po', 'psi.purchase_order_id', '=', 'po.id')
             ->join('products as pr', 'po.product_id', '=', 'pr.id')
@@ -101,25 +104,39 @@ class DashboardController extends Controller
             ->selectRaw('product_id as pid, SUM(qty) as qty')
             ->pluck('qty', 'pid');
 
-        // Kekurangan/cacat penerimaan per produk (mengurangi stok, ditanggung vendor).
-        $shortByProduct = DB::table('pengiriman_items as pi')
+        // Barang yang sudah DITERIMA brand (dasar stok jual, sudah net kekurangan/cacat).
+        $receivedByProduct = DB::table('pengiriman_items as pi')
             ->join('pengiriman as sj', 'pi.pengiriman_id', '=', 'sj.id')
             ->join('products as pr', 'pi.product_id', '=', 'pr.id')
-            ->where('sj.status', 'diterima')->whereNotNull('pi.qty_diterima')
+            ->where('sj.status', 'diterima')
             ->when($brandId, fn ($q) => $q->where('pr.brand_id', $brandId))
             ->groupBy('pi.product_id')
-            ->selectRaw('pi.product_id as pid, SUM(GREATEST(pi.qty - pi.qty_diterima, 0)) as s')
-            ->pluck('s', 'pid');
+            ->selectRaw('pi.product_id as pid, SUM(pi.qty_diterima) as qty')
+            ->pluck('qty', 'pid');
+
+        // Stok yang sudah "keluar sistem" (buy-out / cash-lunas) — diterima & terjual di batch tsb.
+        $goneBatchIds = Batch::where('dibuyout', true)->orWhere('cash_dibayar', true)->pluck('id');
+        $recvGoneByProduct = DB::table('pengiriman_items as pi')
+            ->join('pengiriman as sj', 'pi.pengiriman_id', '=', 'sj.id')
+            ->where('sj.status', 'diterima')->whereIn('sj.batch_id', $goneBatchIds)
+            ->groupBy('pi.product_id')
+            ->selectRaw('pi.product_id as pid, SUM(pi.qty_diterima) as qty')
+            ->pluck('qty', 'pid');
+        $soldGoneByProduct = Sale::query()->consuming()->whereIn('batch_id', $goneBatchIds)
+            ->groupBy('product_id')
+            ->selectRaw('product_id as pid, SUM(qty) as qty')
+            ->pluck('qty', 'pid');
 
         $stokRows = Product::query()
             ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))
             ->with('brand')->get()
-            ->map(function ($p) use ($producedByProduct, $soldByProduct, $shortByProduct) {
+            ->map(function ($p) use ($producedByProduct, $soldByProduct, $receivedByProduct, $recvGoneByProduct, $soldGoneByProduct) {
                 $prod = (int) ($producedByProduct[$p->id] ?? 0);
+                $received = (int) ($receivedByProduct[$p->id] ?? 0);
                 $sold = (int) ($soldByProduct[$p->id] ?? 0);
-                $short = (int) ($shortByProduct[$p->id] ?? 0);
+                $boughtOut = max(0, (int) ($recvGoneByProduct[$p->id] ?? 0) - (int) ($soldGoneByProduct[$p->id] ?? 0));
 
-                return ['product' => $p, 'produced' => $prod, 'sisa' => max(0, $prod - $sold - $short)];
+                return ['product' => $p, 'produced' => $prod, 'sisa' => max(0, $received - $sold - $boughtOut)];
             });
 
         $totalSisa = (int) $stokRows->sum('sisa');
@@ -189,8 +206,11 @@ class DashboardController extends Controller
                 $this->card('Sisa stok siap jual', $pcs($totalSisa), 'stok brand tersisa', self::ICON_STOCK),
             ];
         } elseif ($user->role === Role::Diferd) {
-            // Konsinyasi saja — batch cash sudah lunas di muka, tak menambah hak berjalan.
-            $hak = (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
+            // Hak Diferd = penjualan konsinyasi + buy-out (sama seperti saldo penarikan & sisi 420F).
+            // Batch cash dikecualikan (sudah lunas di muka). Tanpa buy-out, "Akan diterima" bisa
+            // tampil 0 padahal 420F masih berutang.
+            $hak = (int) Sale::sold()->consignment()->sum(DB::raw('qty * harga_diferd'))
+                + (int) VendorLedger::where('tipe', 'buyout')->sum('jumlah');
             // whereNull penarikan_id: baris beku hasil penarikan sudah terwakili totalnya sendiri.
             $terbayar = (int) VendorLedger::where('tipe', 'pembayaran')->whereNull('penarikan_id')->sum('jumlah')
                 + (int) \App\Models\Penarikan::where('status', 'disetujui')->sum('jumlah');
