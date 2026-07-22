@@ -19,7 +19,6 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SettlementController;
 use App\Http\Controllers\StokController;
 use Illuminate\Support\Facades\Route;
