@@ -11,8 +11,9 @@
         {{-- Ringkasan --}}
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
-                <p class="text-sm text-sand-500">Batch aktif</p>
-                <p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ $stats['batchAktif'] }}</p>
+                <p class="text-sm text-sand-500">Batch berjalan</p>
+                <p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ $stats['batchBerjalan'] }}</p>
+                <p class="text-[11px] text-sand-400">dari {{ $stats['batchAktif'] }} batch aktif</p>
             </div>
             <div class="rounded-xl border border-blue-200 bg-blue-50 shadow-sm p-5">
                 <p class="text-sm text-blue-700">PO dalam produksi</p>
@@ -44,12 +45,10 @@
             </div>
         </div>
 
-        {{-- Per batch --}}
-        @forelse ($rows as $row)
-            @php
-                $batch = $row['batch'];
-                $sisa = $row['sisaHari'];
-            @endphp
+        {{-- Batch BERJALAN (prioritas di atas) --}}
+        @php $adaBerjalan = $rows->firstWhere('selesai', false); $adaSelesai = $rows->firstWhere('selesai', true); @endphp
+        @forelse ($rows->where('selesai', false) as $row)
+            @php $batch = $row['batch']; $sisa = $row['sisaHari']; @endphp
             <div class="rounded-xl border {{ $row['telat'] ? 'border-red-200' : ($row['mepet'] ? 'border-amber-200' : 'border-sand-200') }} bg-white shadow-sm overflow-hidden">
                 {{-- Header batch --}}
                 <div class="px-5 py-4 border-b border-sand-200 flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -63,9 +62,7 @@
                         <p class="text-[11px] uppercase tracking-wide text-sand-400">Deadline produksi</p>
                         <p class="text-sm">
                             <span class="text-sand-700">{{ $row['deadlineProd']?->translatedFormat('d M Y') ?? '—' }}</span>
-                            @if ($row['selesai'])
-                                <span class="ml-1 text-xs font-medium text-brand-700">· selesai</span>
-                            @elseif ($sisa === null)
+                            @if ($sisa === null)
                             @elseif ($sisa < 0)
                                 <span class="ml-1 text-xs font-semibold text-red-700">· telat {{ abs($sisa) }} hari</span>
                             @elseif ($sisa === 0)
@@ -83,72 +80,89 @@
                             <span class="font-semibold text-sand-700 tnum">{{ $row['progress'] }}%</span>
                         </div>
                         <div class="h-2 rounded-full bg-sand-100 overflow-hidden">
-                            <div class="h-full rounded-full {{ $row['selesai'] ? 'bg-brand-600' : ($row['telat'] ? 'bg-red-500' : 'bg-brand-500') }}" style="width: {{ $row['progress'] }}%"></div>
+                            <div class="h-full rounded-full {{ $row['telat'] ? 'bg-red-500' : 'bg-brand-500' }}" style="width: {{ $row['progress'] }}%"></div>
                         </div>
                     </div>
                 </div>
 
-                {{-- Daftar PO --}}
-                <div class="divide-y divide-sand-100">
-                    @foreach ($batch->purchaseOrders as $po)
-                        @php
-                            $tahap = $po->tahap;
-                            $hari = $po->hari_di_tahap;
-                            $mandek = ! $tahap->isReady() && $hari !== null && $hari >= 5;
-                        @endphp
-                        <div class="px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-3">
-                            <div class="w-56 min-w-0">
-                                <p class="text-sm font-medium text-sand-800 truncate">{{ $po->product->nama_artikel }}</p>
-                                <p class="text-xs text-sand-400 tnum">{{ $po->nomor_po }}</p>
-                            </div>
+                @include('produksi._po_list', ['batch' => $batch, 'canUpdate' => $canUpdate])
+            </div>
+        @empty
+            @unless ($adaSelesai)
+                <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-12 text-center text-sand-500">
+                    Belum ada batch aktif untuk dimonitor.
+                </div>
+            @else
+                <div class="rounded-xl border border-brand-200 bg-brand-50 shadow-sm p-6 text-center text-brand-700">
+                    Semua batch aktif sudah selesai produksi & pengiriman. 🎉
+                </div>
+            @endunless
+        @endforelse
 
-                            {{-- Stepper 11 tahap --}}
-                            <div class="flex-1 min-w-[200px]">
-                                <div class="flex gap-0.5" title="{{ $tahap->step() }}/11 — {{ $tahap->label() }}">
-                                    @foreach (\App\Enums\TahapProduksi::cases() as $t)
-                                        <div class="h-1.5 flex-1 rounded-full {{ $t->step() <= $tahap->step() ? $tahap->barClass() : 'bg-sand-100' }}"></div>
-                                    @endforeach
+        {{-- Batch SELESAI (collapse — detail produk disembunyikan, cukup info final) --}}
+        @if ($adaSelesai)
+            <div class="pt-2">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-3">Batch selesai</h2>
+                <div class="space-y-3">
+                    @foreach ($rows->where('selesai', true) as $row)
+                        @php $batch = $row['batch']; $f = $row['final']; @endphp
+                        <div x-data="{ open: false }" class="rounded-xl border border-sand-200 bg-white shadow-sm overflow-hidden">
+                            <div class="px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+                                <div class="min-w-0">
+                                    <a href="{{ route('batches.show', $batch) }}" class="font-semibold text-sand-900 hover:text-brand-700">{{ $batch->nomor_batch }}</a>
+                                    <p class="text-xs text-sand-500">{{ $batch->brand->nama }} · {{ $row['posTotal'] }} PO · {{ number_format($batch->total_qty, 0, ',', '.') }} pcs</p>
                                 </div>
-                                <div class="mt-1.5 flex items-center gap-2">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $tahap->badgeClasses() }}">{{ $tahap->step() }}. {{ $tahap->label() }}</span>
-                                    @if ($tahap->isDone())
-                                        <span class="text-xs text-brand-600">✓ tuntas</span>
-                                    @elseif ($hari !== null)
-                                        <span class="text-xs {{ $mandek ? 'text-amber-700 font-medium' : 'text-sand-400' }}">
-                                            {{ $hari === 0 ? 'update hari ini' : $hari.' hari di tahap ini' }}{{ $mandek ? ' · mandek?' : '' }}
-                                        </span>
+
+                                <div class="ml-auto flex flex-wrap items-center gap-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-800">✓ Selesai</span>
+                                    <span class="text-xs text-sand-500">{{ $f['durasi'] }}</span>
+                                    @if ($f['lewatDeadline'])
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">lewat deadline</span>
+                                    @elseif ($row['deadlineProd'])
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">tepat waktu</span>
                                     @endif
+                                    @if ($f['rejectPcs'] > 0)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">{{ $f['rejectPcs'] }} pcs reject</span>
+                                    @else
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sand-100 text-sand-600">tanpa reject</span>
+                                    @endif
+                                    <button type="button" @click="open = !open"
+                                            class="inline-flex items-center gap-1 rounded-lg border border-sand-300 bg-white px-3 py-1.5 text-xs font-medium text-sand-700 hover:bg-sand-50">
+                                        <span x-text="open ? 'Sembunyikan' : 'Detail produk'"></span>
+                                        <span x-text="open ? '▲' : '▼'" class="text-[10px]"></span>
+                                    </button>
                                 </div>
                             </div>
 
-                            {{-- Aksi majukan tahap --}}
-                            @if ($canUpdate && ! $tahap->isDone())
-                                <form method="POST" action="{{ route('purchase-orders.status', [$batch, $po]) }}" class="shrink-0">
-                                    @csrf @method('PATCH')
-                                    <select name="tahap" onchange="this.form.submit()"
-                                            class="rounded-lg border-sand-300 text-xs py-1.5 pr-8 focus:border-brand-600 focus:ring-brand-600">
-                                        @foreach (\App\Enums\TahapProduksi::cases() as $t)
-                                            <option value="{{ $t->value }}" @selected($po->tahap === $t)>{{ $t->step() }}. {{ $t->label() }}</option>
-                                        @endforeach
-                                    </select>
-                                </form>
-                            @endif
-
-                            {{-- Catatan vendor --}}
-                            @if ($po->catatan_vendor)
-                                <div class="w-full flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
-                                    <svg class="h-4 w-4 shrink-0 text-amber-500 mt-0.5" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.019z"/></svg>
-                                    <p class="text-xs text-amber-800 whitespace-pre-line"><span class="font-medium">Catatan vendor:</span> {{ $po->catatan_vendor }}</p>
+                            {{-- Info final + detail produk (toggle) --}}
+                            <div x-show="open" x-cloak class="border-t border-sand-100">
+                                <div class="px-5 py-3 bg-sand-50/60 grid sm:grid-cols-3 gap-3 text-xs">
+                                    <div>
+                                        <dt class="text-sand-400 uppercase tracking-wide text-[10px]">Selesai pada</dt>
+                                        <dd class="text-sand-700">{{ $f['selesaiPada']?->translatedFormat('d M Y') ?? '—' }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-sand-400 uppercase tracking-wide text-[10px]">Lama pengerjaan</dt>
+                                        <dd class="text-sand-700">{{ $f['durasi'] }}{{ $f['lewatDeadline'] ? ' · lewat deadline' : '' }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-sand-400 uppercase tracking-wide text-[10px]">Reject / kurang</dt>
+                                        <dd class="text-sand-700">
+                                            @if ($f['rejectPcs'] > 0)
+                                                {{ $f['rejectPcs'] }} pcs —
+                                                @foreach ($f['rejectProduk'] as $nama => $pcs)<span class="text-amber-700">{{ $nama }} ({{ $pcs }})</span>@if (! $loop->last), @endif @endforeach
+                                            @else
+                                                tidak ada
+                                            @endif
+                                        </dd>
+                                    </div>
                                 </div>
-                            @endif
+                                @include('produksi._po_list', ['batch' => $batch, 'canUpdate' => $canUpdate])
+                            </div>
                         </div>
                     @endforeach
                 </div>
             </div>
-        @empty
-            <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-12 text-center text-sand-500">
-                Belum ada batch aktif untuk dimonitor.
-            </div>
-        @endforelse
+        @endif
     </div>
 </x-app-layout>

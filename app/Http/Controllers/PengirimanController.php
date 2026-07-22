@@ -321,10 +321,20 @@ class PengirimanController extends Controller
      */
     private function tandaiTerkirim(Pengiriman $pengiriman): void
     {
-        PurchaseOrder::where('batch_id', $pengiriman->batch_id)
+        $pos = PurchaseOrder::where('batch_id', $pengiriman->batch_id)
             ->whereIn('product_id', $pengiriman->items->pluck('product_id')->unique())
             ->where('tahap', '!=', TahapProduksi::Terkirim->value)
-            ->update(['tahap' => TahapProduksi::Terkirim->value]);
+            ->get();
+
+        // Update per-model (bukan mass update) supaya transisi tahap → terkirim TEREKAM di audit
+        // log. Riwayat produksi dibangun dari audit log; mass update mem-bypass event Eloquent
+        // sehingga dulu kolom tahap berubah tapi history mentok di "siap kirim".
+        foreach ($pos as $po) {
+            $po->update([
+                'tahap' => TahapProduksi::Terkirim->value,
+                'tahap_updated_at' => now(),
+            ]);
+        }
     }
 
     private function scope($query, Request $request): void
