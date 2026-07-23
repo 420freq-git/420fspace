@@ -17,6 +17,11 @@ class BatchController extends Controller
 {
     public function index(Request $request)
     {
+        // Tandai batch tuntas (produksi selesai + Diferd lunas + stok habis) jadi Lunas otomatis.
+        $user = $request->user();
+        $brandId = (in_array($user->role, [Role::Tm420, Role::Voojah], true) && $user->brand_id) ? $user->brand_id : null;
+        app(\App\Services\SettlementService::class)->reconcileLunas($brandId);
+
         $query = Batch::with(['brand', 'purchaseOrders.sizeItems'])->latest('tanggal_order');
         $this->scope($query, $request);
 

@@ -157,6 +157,48 @@ class SettlementService
     }
 
     /**
+     * Batch benar-benar TUNTAS → layak berstatus Lunas. Syarat semuanya:
+     *  - status masih Aktif,
+     *  - produksi & pengiriman selesai (semua PO terkirim),
+     *  - hak Diferd lunas (saldo ≤ 0),
+     *  - tak ada sisa stok jual (semua terjual / di-buy-out / cash keluar sistem).
+     */
+    public function batchTuntas(Batch $batch): bool
+    {
+        if ($batch->status !== \App\Enums\BatchStatus::Aktif) {
+            return false;
+        }
+        $pos = $batch->relationLoaded('purchaseOrders') ? $batch->purchaseOrders : $batch->purchaseOrders()->get();
+        if ($pos->isEmpty() || ! $pos->every(fn ($p) => $p->tahap === \App\Enums\TahapProduksi::Terkirim)) {
+            return false;
+        }
+
+        return $this->saldo($batch) <= 0 && $this->sisaStok($batch)['pcs'] === 0;
+    }
+
+    /**
+     * Tandai semua batch Aktif yang sudah tuntas menjadi Lunas (rekonsiliasi status).
+     * Idempoten & satu arah (hanya Aktif → Lunas). Dipanggil saat daftar batch/settlement dibuka.
+     */
+    public function reconcileLunas(?int $brandId = null): int
+    {
+        $q = Batch::with('purchaseOrders')->where('status', \App\Enums\BatchStatus::Aktif->value);
+        if ($brandId) {
+            $q->where('brand_id', $brandId);
+        }
+
+        $n = 0;
+        foreach ($q->get() as $batch) {
+            if ($this->batchTuntas($batch)) {
+                $batch->update(['status' => \App\Enums\BatchStatus::Lunas->value]);
+                $n++;
+            }
+        }
+
+        return $n;
+    }
+
+    /**
      * Nilai batch untuk pembayaran CASH (beli putus di muka), dari seluruh qty PO:
      *  - diferd: yang 420F bayar ke Diferd
      *  - tm420 : yang TM bayar ke 420F (sesuai harga pihak; VOOJAH = diferd)

@@ -69,6 +69,9 @@ class SettlementController extends Controller
 
     public function index()
     {
+        // Tandai batch tuntas jadi Lunas otomatis (420F/Diferd lihat semua batch).
+        $this->settlement->reconcileLunas();
+
         $rows = Batch::with('brand')->latest('tanggal_order')->latest('id')->get()
             ->map(fn ($b) => ['batch' => $b, 'sum' => $this->settlement->batchSummary($b)]);
 

@@ -173,6 +173,9 @@ tetap berstatus `aktif` (status ≠ progres produksi).
 - Stok jual berbasis **penerimaan** (bukan produksi); reject/kurang ditanggung vendor.
 - Pengiriman hanya untuk PO bertahap `siap_kirim`; qty ≤ (produced − shipped).
 - Approval batch: **hanya 420F**; TM tak boleh set status batch sendiri.
+- **Auto-lunas:** batch `aktif` otomatis jadi `lunas` bila TUNTAS — semua PO `terkirim` **dan**
+  hak Diferd lunas (saldo ≤ 0) **dan** stok jual habis. `SettlementService::reconcileLunas()`
+  dipanggil saat daftar Batch/Settlement dibuka (idempoten, satu arah aktif→lunas).
 
 ---
 
