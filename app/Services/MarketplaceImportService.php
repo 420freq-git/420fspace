@@ -82,10 +82,6 @@ class MarketplaceImportService
         }
 
         foreach ($grouped as $orderId => $lines) {
-            if (Order::where('nomor_pesanan', $orderId)->exists()) {
-                $summary['skip_sudah_ada']++;
-                continue;
-            }
             $this->createOrder($orderId, $marketplace, $lines, $summary);
         }
 
@@ -94,16 +90,44 @@ class MarketplaceImportService
         return $summary;
     }
 
+    /**
+     * Satu pesanan marketplace bisa berisi produk >1 brand (mis. TM & VOOJAH dalam 1 keranjang).
+     * Karena invariant "1 pesanan = 1 brand", pesanan campur DIPECAH otomatis jadi pesanan terpisah
+     * per brand. Nomor diberi sufiks kode brand agar unik (nomor_pesanan unik). Settlement tetap
+     * cocok karena importSettlement mencocokkan nomor asli maupun awalannya (lihat method itu).
+     */
     private function createOrder(string $orderId, string $marketplace, array $lines, array &$summary): void
     {
-        DB::transaction(function () use ($orderId, $marketplace, $lines, &$summary) {
+        $perBrand = [];
+        foreach ($lines as $line) {
+            $perBrand[$line['size']->product->brand_id][] = $line;
+        }
+        $multiBrand = count($perBrand) > 1;
+
+        foreach ($perBrand as $brandLines) {
+            $brand = $brandLines[0]['size']->product->brand;
+            $nomor = $multiBrand ? $orderId.'-'.($brand->kode ?: 'B'.$brand->id) : $orderId;
+            $this->buatPesanan($nomor, $marketplace, $brandLines, $summary);
+        }
+    }
+
+    /** Buat satu pesanan (satu brand) dari baris-baris yang sudah dikelompokkan. */
+    private function buatPesanan(string $nomor, string $marketplace, array $lines, array &$summary): void
+    {
+        if (Order::where('nomor_pesanan', $nomor)->exists()) {
+            $summary['skip_sudah_ada']++;
+
+            return;
+        }
+
+        DB::transaction(function () use ($nomor, $marketplace, $lines, &$summary) {
             $first = $lines[0];
             $size = $first['size'];
             $product = $size->product;
 
             $order = Order::create([
                 'brand_id' => $product->brand_id,
-                'nomor_pesanan' => $orderId,
+                'nomor_pesanan' => $nomor,
                 'resi' => $first['resi'] ?: null,
                 'marketplace' => $marketplace,
                 'tanggal_pesanan' => $first['tanggal'],
@@ -203,22 +227,27 @@ class MarketplaceImportService
 
         $summary = ['marketplace' => $mp, 'cair' => 0, 'tak_ditemukan' => 0, 'sudah_lunas' => 0, 'dilewati' => 0];
         foreach ($settled as $orderId => $tanggal) {
-            $order = Order::where('nomor_pesanan', $orderId)
-                ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->first();
-            if (! $order) {
+            // Cocokkan nomor asli MAUPUN pecahannya (mis. '123-TM','123-VJ' dari pesanan campur-brand).
+            $orders = Order::where(function ($q) use ($orderId) {
+                $q->where('nomor_pesanan', $orderId)->orWhere('nomor_pesanan', 'like', $orderId.'-%');
+            })->when($brandId, fn ($q) => $q->where('brand_id', $brandId))->get();
+
+            if ($orders->isEmpty()) {
                 $summary['tak_ditemukan']++;
                 continue;
             }
-            if ($order->status->value === 'lunas') {
-                $summary['sudah_lunas']++;
-                continue;
+            foreach ($orders as $order) {
+                if ($order->status->value === 'lunas') {
+                    $summary['sudah_lunas']++;
+                    continue;
+                }
+                if (in_array($order->status->value, ['batal', 'retur'], true)) {
+                    $summary['dilewati']++;
+                    continue;
+                }
+                $order->update(['status' => 'lunas', 'tgl_cair' => $tanggal]);
+                $summary['cair']++;
             }
-            if (in_array($order->status->value, ['batal', 'retur'], true)) {
-                $summary['dilewati']++;
-                continue;
-            }
-            $order->update(['status' => 'lunas', 'tgl_cair' => $tanggal]);
-            $summary['cair']++;
         }
 
         return $summary;
