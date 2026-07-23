@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\Role;
 use App\Models\ImportLog;
 use App\Services\MarketplaceImportService;
 use Illuminate\Http\Request;
@@ -68,10 +67,10 @@ class ImportController extends Controller
             return view('orders.import-settlement', ['dupWarning' => $dup]);
         }
 
-        $user = $request->user();
-        $brandId = (in_array($user->role, [Role::Tm420, Role::Voojah], true) && $user->brand_id) ? $user->brand_id : null;
-
-        $summary = $this->importer->importSettlement($file, $brandId);
+        // Tidak di-scope brand — konsisten dgn import pesanan. Satu file settlement (mis. dari
+        // marketplace gabungan TM+VOOJAH) yang diunggah TM ikut mencairkan pesanan kedua brand.
+        // Nomor pesanan marketplace unik antar brand, jadi file per-brand tak saling menyentuh.
+        $summary = $this->importer->importSettlement($file);
 
         if (isset($summary['error'])) {
             return back()->with('error', $summary['error']);

@@ -100,6 +100,24 @@ class ImportMarketplaceTest extends ErpTestCase
         $this->assertSame('lunas', Order::where('nomor_pesanan', 'MIX-9-VJ')->first()->status->value);
     }
 
+    public function test_tm_unggah_settlement_gabungan_cairkan_kedua_brand(): void
+    {
+        $this->produksiTerima($this->batchAktif($this->produkTm, ['M' => 5]));
+        $this->produksiTerima($this->batchAktif($this->produkVoojah, ['M' => 5]));
+        app(MarketplaceImportService::class)->import($this->csvTiktok([
+            ['MIX-C', 'Completed', 'T1', 'TM-A-M', '1', '2026-07-20 10:00', 'Kaos TM'],
+            ['MIX-C', 'Completed', 'T1', 'VJ-A-M', '1', '2026-07-20 10:00', 'Kaos VOOJAH'],
+        ]));
+
+        // TM (bukan admin) unggah SATU file settlement gabungan → kedua brand ikut cair.
+        $this->actingAs($this->tm)->post(route('orders.settlement.store'), [
+            'file' => $this->csvSettlementTiktok([['MIX-C', '100000', '2026-07-22']]),
+        ]);
+
+        $this->assertSame('lunas', Order::where('nomor_pesanan', 'MIX-C-TM')->first()->status->value);
+        $this->assertSame('lunas', Order::where('nomor_pesanan', 'MIX-C-VJ')->first()->status->value);
+    }
+
     /** Bangun CSV format settlement TikTok. $rows = [[orderId, jumlah, tanggal], ...]. */
     private function csvSettlementTiktok(array $rows): UploadedFile
     {
