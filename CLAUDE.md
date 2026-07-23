@@ -223,9 +223,17 @@ zip aktif · (opsional) SMTP asli, `FONNTE_TOKEN`, cron `schedule:run`, `queue:w
 
 ---
 
-## 12. Cara Uji (konvensi sesi ini)
-- Tak ada test suite formal (hanya default Laravel). Uji pakai **tinker script** yang memanggil
-  controller/service asli dengan `Request::create()` + `setUserResolver()`.
+## 12. Cara Uji
+- **Test suite formal ada** di `tests/Feature/Erp/` (uang konsinyasi/VOOJAH, cash, buy-out, stok,
+  auto-lunas status, scoping/IDOR). Base: `tests/ErpTestCase.php` (seed master + helper alur
+  `batchAktif`/`produksiTerima`/`jual`). Jalankan: `php artisan test`.
+  - Pakai **DB MySQL test** `420frequency_test` (buat sekali; kredensial di `phpunit.xml`) karena
+    app pakai SQL khas MySQL — SQLite :memory: tak cukup. `RefreshDatabase` migrate fresh tiap run.
+  - **Migrasi HARUS fresh-installable** — hati-hati urutan timestamp/nama file bila tabel A merujuk
+    tabel B (mis. `invoices` mengubah `orders`: file `..._invoices_and_penarikan` tanpa prefix
+    "create_" agar sort setelah `..._create_orders_table`; pakai guard hasTable/hasColumn).
+- Eksplorasi cepat masih boleh pakai **tinker script** yang memanggil controller/service asli
+  dengan `Request::create()` + `setUserResolver()`.
 - Pola: tulis script ke folder scratchpad, jalankan `php artisan tinker "path/script.php"`.
   **Jangan pipe ke grep** (tinker hang) — alihkan output ke file lalu baca file.
 - **Gotcha tinker:** proses sering *hang saat exit* (exit 143) walau output sudah tercetak —

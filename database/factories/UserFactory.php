@@ -30,6 +30,8 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            // App butuh role (layout menampilkan badge role); default admin 420F.
+            'role' => \App\Enums\Role::Admin->value,
         ];
     }
 
