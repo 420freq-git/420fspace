@@ -44,6 +44,24 @@ class ImportMarketplaceTest extends ErpTestCase
         $this->assertSame(70000, (int) $sale->harga_tm420);
     }
 
+    public function test_satu_file_berisi_pesanan_tm_dan_voojah_masuk_brand_masing_masing(): void
+    {
+        // Kedua brand punya stok.
+        $this->produksiTerima($this->batchAktif($this->produkTm, ['M' => 5]));
+        $this->produksiTerima($this->batchAktif($this->produkVoojah, ['M' => 5]));
+
+        // Satu file, dua pesanan: satu SKU TM, satu SKU VOOJAH.
+        $result = app(MarketplaceImportService::class)->import($this->csvTiktok([
+            ['ORD-TM', 'Completed', 'T1', 'TM-A-M', '2', '2026-07-20 10:00', 'Kaos TM'],
+            ['ORD-VJ', 'Completed', 'T2', 'VJ-A-M', '1', '2026-07-20 10:00', 'Kaos VOOJAH'],
+        ]));
+
+        $this->assertSame(2, (int) $result['imported_orders']);
+        // Tiap pesanan masuk ke brand yang benar (dari SKU), tanpa perlu pisah file.
+        $this->assertDatabaseHas('orders', ['nomor_pesanan' => 'ORD-TM', 'brand_id' => $this->brandTm->id]);
+        $this->assertDatabaseHas('orders', ['nomor_pesanan' => 'ORD-VJ', 'brand_id' => $this->brandVoojah->id]);
+    }
+
     public function test_import_lewati_pesanan_dibatalkan(): void
     {
         $batch = $this->batchAktif($this->produkTm, ['M' => 5]);
