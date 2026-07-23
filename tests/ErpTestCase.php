@@ -33,6 +33,7 @@ abstract class ErpTestCase extends TestCase
     protected Brand $brandTm;
     protected Brand $brandVoojah;
     protected Product $produkTm;
+    protected Product $produkTm2;
     protected Product $produkVoojah;
 
     protected function setUp(): void
@@ -51,6 +52,7 @@ abstract class ErpTestCase extends TestCase
         CategoryPrice::create(['category_id' => $cat->id, 'size_tier' => 'xxl', 'harga_diferd' => 65000, 'harga_tm420' => 75000]);
 
         $this->produkTm = $this->buatProduk($this->brandTm, $cat, 'TM-A', 'Kaos TM');
+        $this->produkTm2 = $this->buatProduk($this->brandTm, $cat, 'TM-B', 'Kaos TM 2');
         $this->produkVoojah = $this->buatProduk($this->brandVoojah, $cat, 'VJ-A', 'Kaos VOOJAH');
 
         $this->admin = $this->buatUser('420f', null);
