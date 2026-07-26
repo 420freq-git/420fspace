@@ -188,7 +188,11 @@ Route::middleware('auth')->group(function () {
         Route::patch('settlement/{batch}/status', [SettlementController::class, 'markStatus'])->name('settlement.status');
         Route::patch('settlement/{batch}/buyout', [SettlementController::class, 'buyout'])->name('settlement.buyout');
         Route::patch('settlement/{batch}/bayar-cash', [SettlementController::class, 'bayarCash'])->name('settlement.bayar-cash');
+        Route::patch('settlement/{batch}/lunasi-sisa-cash', [SettlementController::class, 'lunasiSisaCash'])->name('settlement.lunasi-sisa-cash');
+        Route::post('settlement/{batch}/bayar-diferd-cash', [SettlementController::class, 'bayarDiferdCash'])->name('settlement.bayar-diferd-cash');
         Route::post('settlement/{batch}/ganti-cash', [SettlementController::class, 'gantiCash'])->name('settlement.ganti-cash');
+        Route::post('settlement/cash-ganti/{cashGanti}/refund-diferd', [SettlementController::class, 'refundDiferdMasuk'])->name('settlement.refund-diferd');
+        Route::post('settlement/cash-ganti/{cashGanti}/refund-teruskan', [SettlementController::class, 'refundTeruskanTm'])->name('settlement.refund-teruskan');
         Route::patch('settlement/deposit/selesaikan', [SettlementController::class, 'selesaikanDeposit'])->name('settlement.deposit.selesaikan');
         Route::patch('settlement/{batch}/rekonsiliasi', [SettlementController::class, 'rekonsiliasiDeposit'])->name('settlement.rekonsiliasi');
     });
