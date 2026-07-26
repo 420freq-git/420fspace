@@ -27,7 +27,7 @@
                                     <th class="px-3 py-3 font-semibold text-center">{{ $l }}</th>
                                 @endforeach
                                 <th class="px-5 py-3 font-semibold text-center">Total unit</th>
-                                @if ($showTm)<th class="px-5 py-3 font-semibold text-right">Nilai TM420</th>@endif
+                                @if ($showTm)<th class="px-5 py-3 font-semibold text-right">Nilai {{ $labelJual }}</th>@endif
                                 @if ($showDiferd)<th class="px-5 py-3 font-semibold text-right">Nilai Diferd</th>@endif
                             </tr>
                         </thead>

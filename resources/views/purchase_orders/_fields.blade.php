@@ -1,12 +1,11 @@
 @php
     use App\Enums\Ukuran;
-    use App\Enums\JenisProduksi;
 
-    $specStr = ['patrun','ukuran_rib','warna_bahan','jenis_bahan','supp_bahan','warna_benang','cat_sablon','finishing','desain_depan','desain_belakang','desain_lengan'];
+    $specStr = ['patrun','ukuran_rib','ukuran_rib_lengan','warna_bahan','jenis_bahan','supp_bahan','cat_sablon','finishing','desain_depan','desain_belakang','desain_lengan'];
     $specBool = ['label_leher','label_bawah','slip_label','aksesoris','care_label','hangtag','plastik'];
     $labels = [
-        'patrun'=>'Patrun','ukuran_rib'=>'Ukuran RIB','warna_bahan'=>'Warna bahan','jenis_bahan'=>'Jenis bahan',
-        'supp_bahan'=>'Supp bahan','warna_benang'=>'Warna benang','cat_sablon'=>'Cat sablon','finishing'=>'Finishing',
+        'patrun'=>'Patrun','ukuran_rib'=>'Ukuran RIB leher','ukuran_rib_lengan'=>'Ukuran RIB lengan','warna_bahan'=>'Warna bahan','jenis_bahan'=>'Jenis bahan',
+        'supp_bahan'=>'Supp bahan','cat_sablon'=>'Cat sablon','finishing'=>'Finishing',
         'desain_depan'=>'Desain depan','desain_belakang'=>'Desain belakang','desain_lengan'=>'Desain lengan',
         'label_leher'=>'Label leher','label_bawah'=>'Label bawah','slip_label'=>'Slip label','aksesoris'=>'Aksesoris',
         'care_label'=>'Care label','hangtag'=>'Hangtag','plastik'=>'Plastik',
@@ -25,6 +24,7 @@
             'id' => $p->id,
             'label' => $p->nama_artikel,
             'kategori' => $p->category->nama ?? '',
+            'jenis' => $p->category?->jenisProduksi()->label() ?? '',
         ];
     }
 
@@ -44,6 +44,7 @@
         sorot: 0,
         init() { this.q = this.labelOf(this.productId); },
         labelOf(id) { return this.products.find(p => String(p.id) === String(id))?.label ?? ''; },
+        prodOf(id) { return this.products.find(p => String(p.id) === String(id)) ?? null; },
         cari() {
             const k = this.q.trim().toLowerCase();
             if (! k) return this.products;
@@ -104,36 +105,41 @@
         @endif
     </section>
 
-    {{-- Matriks ukuran × jenis --}}
+    {{-- Rincian ukuran (qty per ukuran; jenis produksi otomatis dari kategori) --}}
     <section class="space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400">Rincian ukuran</h2>
+
+        {{-- Jenis produksi ditentukan otomatis dari kategori artikel — bukan diinput manual. --}}
+        <div x-show="prodOf(productId)" x-cloak
+             class="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
+            <svg class="h-4 w-4 flex-none" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
+            <span>Jenis produksi: <b x-text="prodOf(productId)?.jenis || '—'"></b>
+                <span class="text-brand-600/80">(otomatis dari kategori <span x-text="prodOf(productId)?.kategori"></span>)</span></span>
+        </div>
+
         <div class="overflow-x-auto rounded-lg border border-sand-200">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-sand-50 text-xs uppercase tracking-wide text-sand-500">
                         <th class="px-4 py-2.5 text-left font-semibold">Ukuran</th>
-                        @foreach (JenisProduksi::cases() as $j)
-                            <th class="px-4 py-2.5 text-center font-semibold">{{ $j->label() }}</th>
-                        @endforeach
+                        <th class="px-4 py-2.5 text-center font-semibold">Jumlah (pcs)</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-sand-100">
                     @foreach (Ukuran::cases() as $u)
+                        @php $qv = old("qty.{$u->value}", $po->exists ? $po->totalPerUkuran($u) : 0); @endphp
                         <tr>
                             <td class="px-4 py-2 font-medium text-sand-700">{{ $u->value }}</td>
-                            @foreach (JenisProduksi::cases() as $j)
-                                @php $qv = old("qty.{$u->value}.{$j->value}", $po->exists ? $po->qtyFor($u, $j) : 0); @endphp
-                                <td class="px-2 py-1.5">
-                                    <input type="number" min="0" name="qty[{{ $u->value }}][{{ $j->value }}]" value="{{ $qv ?: '' }}" placeholder="0"
-                                           class="block w-full rounded-md border-sand-300 text-center text-sm focus:border-brand-600 focus:ring-brand-600 tnum">
-                                </td>
-                            @endforeach
+                            <td class="px-2 py-1.5">
+                                <input type="number" min="0" name="qty[{{ $u->value }}]" value="{{ $qv ?: '' }}" placeholder="0"
+                                       class="block w-full rounded-md border-sand-300 text-center text-sm focus:border-brand-600 focus:ring-brand-600 tnum">
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
         </div>
-        <p class="text-xs text-sand-400">Isi jumlah per kombinasi ukuran &times; jenis. Kosongkan bila 0.</p>
+        <p class="text-xs text-sand-400">Isi jumlah per ukuran. Kosongkan bila 0.</p>
     </section>
 
     {{-- Spesifikasi & sablon --}}

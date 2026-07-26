@@ -21,7 +21,7 @@
                 <th>Kategori</th>
                 @foreach ($labels as $l)<th class="c" style="width:8%">{{ $l }}</th>@endforeach
                 <th class="c" style="width:10%">Total</th>
-                @if ($showTm)<th class="r" style="width:16%">Nilai TM420</th>@endif
+                @if ($showTm)<th class="r" style="width:16%">Nilai {{ $labelJual }}</th>@endif
                 @if ($showDiferd)<th class="r" style="width:16%">Nilai Diferd</th>@endif
             </tr>
         </thead>

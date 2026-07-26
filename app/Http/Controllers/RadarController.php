@@ -19,7 +19,10 @@ use Illuminate\Http\Request;
  */
 class RadarController extends Controller
 {
-    public function __construct(private SettlementService $settlement) {}
+    public function __construct(
+        private SettlementService $settlement,
+        private \App\Services\StockService $stock,
+    ) {}
 
     public function index(Request $request)
     {
@@ -35,6 +38,7 @@ class RadarController extends Controller
 
         $rows = $query->get()->map(function ($batch) use ($ambangMepetHari) {
             $sisa = $this->settlement->sisaStok($batch);
+            $gerak = $this->stock->pergerakanBatch($batch);   // diterima / terjual / sisa
             $hariLagi = (int) round(now()->startOfDay()->diffInDays($batch->deadline, false));
 
             $status = $hariLagi < 0 ? 'lewat' : ($hariLagi <= $ambangMepetHari ? 'mepet' : 'aman');
@@ -43,7 +47,10 @@ class RadarController extends Controller
                 'batch' => $batch,
                 'deadline' => $batch->deadline,
                 'hari_lagi' => $hariLagi,
+                'diterima' => $gerak['diterima'],
+                'terjual' => $gerak['terjual'],
                 'sisa_pcs' => $sisa['pcs'],
+                'sell_through' => $gerak['diterima'] > 0 ? (int) round($gerak['terjual'] / $gerak['diterima'] * 100) : 0,
                 'paparan' => $sisa['nilai'],
                 'status' => $status,
             ];
@@ -57,6 +64,8 @@ class RadarController extends Controller
             'rows' => $rows,
             'totalPaparan' => (int) $rows->sum('paparan'),
             'totalSisa' => (int) $rows->sum('sisa_pcs'),
+            'totalDiterima' => (int) $rows->sum('diterima'),
+            'totalTerjual' => (int) $rows->sum('terjual'),
             'mepetCount' => $rows->whereIn('status', ['mepet', 'lewat'])->count(),
             'ambang' => $ambangMepetHari,
         ]);

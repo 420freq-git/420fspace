@@ -26,7 +26,7 @@
         <tr>
             @if ($showTm)
                 <td style="width:50%">
-                    <div class="lbl">Kerugian TM420 — retur tidak bisa dijual</div>
+                    <div class="lbl">Kerugian {{ $labelJual }} — retur tidak bisa dijual</div>
                     <div class="val r">{{ $fmt($totalNilai) }}</div>
                     <div class="lbl">{{ number_format($totalQty, 0, ',', '.') }} pcs</div>
                 </td>
@@ -84,7 +84,7 @@
     @endif
 
     @if ($showTm)
-    <div class="sec-h">Kerugian TM420 — retur yang tidak bisa dijual</div>
+    <div class="sec-h">Kerugian {{ $labelJual }} — retur yang tidak bisa dijual</div>
     <table class="grid">
         <thead>
             <tr>

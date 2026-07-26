@@ -102,6 +102,17 @@ class MonitoringController extends Controller
     public function terimaRetur(Request $request, Order $order)
     {
         $this->ensureOwn($request, $order);
+
+        // Hanya pesanan yang memang sedang diretur, dan hanya SEKALI. Tanpa penjaga ini kondisi
+        // bisa dibalik (layak ↔ rusak) setelah diproses — dan itu menggeser stok sekaligus
+        // tagihan brand: `layak` mengembalikan stok & menghapus tagihan, `rusak` sebaliknya.
+        if ($order->tgl_retur_diterima) {
+            return back()->with('error', 'Retur pesanan ini sudah pernah diproses — tidak bisa diubah lagi.');
+        }
+        if ($order->status !== \App\Enums\OrderStatus::Retur) {
+            return back()->with('error', 'Pesanan ini tidak sedang berstatus retur.');
+        }
+
         $data = $request->validate([
             'kondisi' => ['required', 'in:layak,rusak'],
             // Alasan wajib bila dinyatakan rusak/hilang — jadi dasar catatan kerugian.

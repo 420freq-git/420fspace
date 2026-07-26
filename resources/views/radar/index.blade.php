@@ -18,6 +18,7 @@
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
                 <p class="text-sm text-sand-500">Sisa stok belum terjual</p>
                 <p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ number_format($totalSisa, 0, ',', '.') }} <span class="text-sm font-normal">pcs</span></p>
+                <p class="mt-1 text-xs text-sand-400">terjual {{ number_format($totalTerjual, 0, ',', '.') }} dari {{ number_format($totalDiterima, 0, ',', '.') }} diterima</p>
             </div>
             <div class="rounded-xl border {{ $mepetCount > 0 ? 'border-red-200 bg-red-50' : 'border-sand-200 bg-white' }} shadow-sm p-5">
                 <p class="text-sm {{ $mepetCount > 0 ? 'text-red-700' : 'text-sand-500' }}">Perlu perhatian</p>
@@ -37,6 +38,7 @@
                                 <th class="px-5 py-3 font-semibold">Batch</th>
                                 <th class="px-5 py-3 font-semibold">Deadline pelunasan</th>
                                 <th class="px-5 py-3 font-semibold text-center">Sisa waktu</th>
+                                <th class="px-5 py-3 font-semibold">Terjual / Diterima</th>
                                 <th class="px-5 py-3 font-semibold text-center">Sisa stok</th>
                                 <th class="px-5 py-3 font-semibold text-right">Paparan buy-out</th>
                             </tr>
@@ -64,6 +66,15 @@
                                                 {{ $r['hari_lagi'] }} hari lagi
                                             @endif
                                         </span>
+                                    </td>
+                                    <td class="px-5 py-3.5 w-48">
+                                        <div class="flex items-center justify-between text-xs mb-1">
+                                            <span class="tnum text-sand-700">{{ number_format($r['terjual'], 0, ',', '.') }} / {{ number_format($r['diterima'], 0, ',', '.') }}</span>
+                                            <span class="tnum text-sand-400">{{ $r['sell_through'] }}%</span>
+                                        </div>
+                                        <div class="h-1.5 rounded-full bg-sand-100 overflow-hidden">
+                                            <div class="h-full rounded-full bg-brand-500" style="width: {{ $r['sell_through'] }}%"></div>
+                                        </div>
                                     </td>
                                     <td class="px-5 py-3.5 text-center tnum font-medium text-sand-900">{{ number_format($r['sisa_pcs'], 0, ',', '.') }}</td>
                                     <td class="px-5 py-3.5 text-right tnum font-semibold {{ $r['status'] === 'aman' ? 'text-sand-700' : 'text-amber-700' }}">{{ $fmt($r['paparan']) }}</td>

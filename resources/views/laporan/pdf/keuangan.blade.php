@@ -18,7 +18,7 @@
     <table class="cards">
         <tr>
             <td style="width:{{ $cardW }}%"><div class="lbl">Unit terjual (12 bln)</div><div class="val">{{ number_format($totals['unit'], 0, ',', '.') }}</div></td>
-            @if ($showTm)<td style="width:{{ $cardW }}%"><div class="lbl">Nilai jual (TM420)</div><div class="val">{{ $fmt($totals['nilai_tm']) }}</div></td>@endif
+            @if ($showTm)<td style="width:{{ $cardW }}%"><div class="lbl">Nilai jual ({{ $labelJual }})</div><div class="val">{{ $fmt($totals['nilai_tm']) }}</div></td>@endif
             @if ($showDiferd)<td style="width:{{ $cardW }}%"><div class="lbl">Hak Diferd</div><div class="val">{{ $fmt($totals['hak_diferd']) }}</div></td>@endif
             @if ($showFee)<td style="width:{{ $cardW }}%"><div class="lbl">Fee 420F</div><div class="val g">{{ $fmt($totals['fee']) }}</div></td>@endif
         </tr>
@@ -29,7 +29,7 @@
         <thead>
             <tr>
                 <th>Bulan</th><th class="c" style="width:12%">Unit</th>
-                @if ($showTm)<th class="r" style="width:22%">Nilai TM420</th>@endif
+                @if ($showTm)<th class="r" style="width:22%">Nilai {{ $labelJual }}</th>@endif
                 @if ($showDiferd)<th class="r" style="width:22%">Hak Diferd</th>@endif
                 @if ($showFee)<th class="r" style="width:22%">Fee 420F</th>@endif
             </tr>

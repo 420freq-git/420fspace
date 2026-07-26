@@ -7,6 +7,7 @@
 
 <div class="space-y-5" x-data="{
         tgl: '{{ $tglVal }}',
+        payment: '{{ old('type_payment', $batch->type_payment?->value ?? 'termin') }}',
         deadline(){
             if(!this.tgl) return '—';
             const d = new Date(this.tgl); d.setFullYear(d.getFullYear()+1);
@@ -53,11 +54,25 @@
 
         <div>
             <label for="type_payment" class="block text-sm font-medium text-sand-700">Type payment</label>
-            <select name="type_payment" id="type_payment" required class="mt-1 block w-full rounded-lg border-sand-300 focus:border-brand-600 focus:ring-brand-600">
+            <select name="type_payment" id="type_payment" x-model="payment" required class="mt-1 block w-full rounded-lg border-sand-300 focus:border-brand-600 focus:ring-brand-600">
                 @foreach (TypePayment::cases() as $tp)
                     <option value="{{ $tp->value }}" @selected(old('type_payment', $batch->type_payment?->value ?? 'termin') === $tp->value)>{{ $tp->label() }}</option>
                 @endforeach
             </select>
+        </div>
+
+        {{-- DP hanya untuk cash: brand bayar sebagian di muka saat disetujui, sisa saat siap kirim.
+             Kosong = cash penuh di muka (perilaku biasa). --}}
+        <div x-show="payment === 'cash'" x-cloak>
+            <label for="dp_persen" class="block text-sm font-medium text-sand-700">Down payment (opsional)</label>
+            <div class="mt-1 relative">
+                <input type="number" name="dp_persen" id="dp_persen" min="1" max="99"
+                       value="{{ old('dp_persen', $batch->dp_persen) }}" placeholder="mis. 50"
+                       class="block w-full rounded-lg border-sand-300 pr-8 focus:border-brand-600 focus:ring-brand-600 tnum">
+                <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-sand-400">%</span>
+            </div>
+            <p class="mt-1 text-xs text-sand-500">DP dibayar saat batch disetujui; sisanya saat semua PO siap kirim. Kosongkan untuk bayar penuh di muka.</p>
+            @error('dp_persen') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
         </div>
 
         {{-- Deposit tidak lagi diinput per batch: modal produksi terjadi sekali di awal kerja

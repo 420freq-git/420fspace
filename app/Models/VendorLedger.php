@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['brand_id', 'batch_id', 'penarikan_id', 'tanggal', 'tipe', 'jumlah', 'keterangan'])]
+#[Fillable(['brand_id', 'batch_id', 'penarikan_id', 'tanggal', 'tipe', 'jumlah', 'keterangan', 'bukti_transfer'])]
 class VendorLedger extends Model
 {
     use Auditable;

@@ -17,7 +17,7 @@ use Illuminate\Validation\Rules\Enum;
 class PurchaseOrderController extends Controller
 {
     private array $specStrings = [
-        'patrun', 'ukuran_rib', 'warna_bahan', 'jenis_bahan', 'supp_bahan', 'warna_benang',
+        'patrun', 'ukuran_rib', 'ukuran_rib_lengan', 'warna_bahan', 'jenis_bahan', 'supp_bahan',
         'cat_sablon', 'finishing', 'desain_depan', 'desain_belakang', 'desain_lengan', 'note',
     ];
 
@@ -133,7 +133,46 @@ class PurchaseOrderController extends Controller
             ]);
         }
 
+        if ($request->expectsJson()) {
+            return response()->json($this->ringkasanTahap($request, $batch, $purchaseOrder));
+        }
+
         return back()->with('success', 'Tahap produksi diperbarui.');
+    }
+
+    /**
+     * Bahan untuk memperbarui halaman TANPA reload setelah tahap diubah (lihat resources/js/app.js).
+     * Baris PO dirender ulang di server supaya aturan tahap (stepper, badge, "mandek", tuntas)
+     * tetap satu sumber di PHP dan tidak diduplikasi di JavaScript.
+     *
+     * `selesai` dipakai klien untuk mendeteksi perubahan STRUKTURAL: batch yang jadi/batal
+     * "selesai" harus pindah bagian di halaman monitoring — itu tak bisa ditambal per-baris,
+     * jadi klien memuat ulang halaman hanya untuk kasus jarang ini.
+     */
+    private function ringkasanTahap(Request $request, Batch $batch, PurchaseOrder $purchaseOrder): array
+    {
+        $stock = app(\App\Services\StockService::class);
+
+        $batch->load(['purchaseOrders.product', 'purchaseOrders.sizeItems']);
+        $pos = $batch->purchaseOrders;
+
+        $semuaReady = $pos->isNotEmpty() && $pos->every(fn ($p) => $p->tahap->isReady());
+
+        $canUpdate = $request->user()->isAdmin() || $request->user()->role === Role::Diferd;
+
+        return [
+            'ok' => true,
+            'message' => 'Tahap produksi diperbarui.',
+            'po_id' => $purchaseOrder->id,
+            'batch_id' => $batch->id,
+            'progress' => $pos->isEmpty() ? 0 : (int) round($pos->avg(fn ($p) => $p->tahap->progress())),
+            'selesai' => $semuaReady && $stock->menungguKirimBatch($batch) === 0,
+            'row_html' => view('produksi._po_row', [
+                'batch' => $batch,
+                'po' => $purchaseOrder->fresh('product'),
+                'canUpdate' => $canUpdate,
+            ])->render(),
+        ];
     }
 
     /** Catatan vendor → brand (kendala teknis, dsb). */
@@ -193,16 +232,20 @@ class PurchaseOrderController extends Controller
 
     private function saveSizeItems(Request $request, PurchaseOrder $po): void
     {
+        // Jenis produksi ditentukan otomatis dari kategori artikel (bukan diinput manual),
+        // supaya tak salah isi (mis. "pendek" untuk longsleeve). Satu qty per ukuran.
+        $jenis = $po->product?->category?->jenisProduksi() ?? JenisProduksi::Pendek;
+
         foreach (Ukuran::cases() as $u) {
-            foreach (JenisProduksi::cases() as $j) {
-                $qty = (int) $request->input("qty.{$u->value}.{$j->value}", 0);
-                if ($qty > 0) {
-                    $po->sizeItems()->create([
-                        'ukuran' => $u->value,
-                        'jenis' => $j->value,
-                        'qty' => $qty,
-                    ]);
-                }
+            $val = $request->input("qty.{$u->value}", 0);
+            // Toleran terhadap format lama (qty[ukuran][jenis]) — jumlahkan bila array.
+            $qty = is_array($val) ? array_sum(array_map('intval', $val)) : (int) $val;
+            if ($qty > 0) {
+                $po->sizeItems()->create([
+                    'ukuran' => $u->value,
+                    'jenis' => $jenis->value,
+                    'qty' => $qty,
+                ]);
             }
         }
     }
@@ -227,7 +270,6 @@ class PurchaseOrderController extends Controller
                 Rule::exists('products', 'id')->where('brand_id', $batch->brand_id),
             ],
             'qty' => ['nullable', 'array'],
-            'qty.*.*' => ['nullable', 'integer', 'min:0'],
         ]);
     }
 }

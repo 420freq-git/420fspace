@@ -32,7 +32,9 @@
                 <span class="ms-2 text-sm text-sand-600">{{ __('Ingat saya') }}</span>
             </label>
 
-            @if (Route::has('password.request'))
+            {{-- Tanpa SMTP asli (MAIL_MAILER=log) email reset tak pernah sampai — sembunyikan
+                 tautannya agar tak menyesatkan. Reset dilakukan admin 420F lewat menu Users. --}}
+            @if (Route::has('password.request') && config('mail.default') !== 'log')
                 <a class="text-sm text-brand-700 hover:text-brand-800 hover:underline focus:outline-none" href="{{ route('password.request') }}">
                     {{ __('Lupa password?') }}
                 </a>

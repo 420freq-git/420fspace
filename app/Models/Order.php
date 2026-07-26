@@ -61,6 +61,27 @@ class Order extends Model
         return $this->hasMany(Sale::class);
     }
 
+    /**
+     * Pesanan yang sudah jadi kewajiban bayar brand — kandidat masuk invoice.
+     *
+     * Dua sumber, sejalan dengan `Sale::sold()` yang dipakai `SettlementService::tagihanBrand()`:
+     *  1. pesanan **cair** (`lunas`), dan
+     *  2. pesanan yang barangnya kembali **rusak** — rugi retur pelanggan ditanggung brand, dan
+     *     brand tetap membayar produksinya ke Diferd (aturan terkunci CLAUDE.md §4).
+     *     Statusnya `batal` setelah retur diproses, jadi tanpa cabang ini tagihannya tak akan
+     *     pernah bisa diterbitkan dan saldo brand menggantung selamanya.
+     *
+     * Catatan: reject PRODUKSI ditanggung Diferd dan tak pernah lewat sini — itu selisih
+     * penerimaan (`shortfallInBatch`), bukan penjualan.
+     */
+    public function scopeBisaDitagih($query)
+    {
+        return $query->where(function ($w) {
+            $w->where('status', OrderStatus::Lunas->value)
+                ->orWhereHas('items', fn ($i) => $i->where('kondisi_retur', 'rusak'));
+        });
+    }
+
     public function getTotalQtyAttribute(): int
     {
         return (int) $this->items->sum('qty');

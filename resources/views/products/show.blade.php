@@ -16,6 +16,18 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                @php $kurang = $product->kelengkapanKurang(); @endphp
+                @if (empty($kurang))
+                    <span class="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                        Lengkap
+                    </span>
+                @else
+                    <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800" title="Belum terisi: {{ implode(', ', $kurang) }}">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                        Belum lengkap: {{ implode(', ', $kurang) }}
+                    </span>
+                @endif
                 @if ($isAdmin)
                     <a href="{{ route('products.edit', $product) }}" class="inline-flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">Ubah</a>
                 @endif
@@ -41,17 +53,27 @@
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">
                     Harga @if ($product->hasOverride())<span class="ms-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">khusus</span>@endif
                 </h2>
-                @php $lihatDiferd = auth()->user()->bolehLihatHargaDiferd(); @endphp
+                @php
+                    $lihatDiferd = auth()->user()->bolehLihatHargaDiferd();
+                    $lihatTm = auth()->user()->bolehLihatHargaTm420();
+                @endphp
                 <table class="w-full text-sm">
-                    <thead><tr class="text-xs text-sand-500 text-left"><th class="pb-2 font-medium">Tier</th>@if ($lihatDiferd)<th class="pb-2 font-medium text-right">Diferd</th>@endif<th class="pb-2 font-medium text-right">TM420</th>@if ($lihatDiferd)<th class="pb-2 font-medium text-right">Markup</th>@endif</tr></thead>
+                    <thead>
+                        <tr class="text-xs text-sand-500 text-left">
+                            <th class="pb-2 font-medium">Tier</th>
+                            @if ($lihatDiferd)<th class="pb-2 font-medium text-right">Diferd</th>@endif
+                            @if ($lihatTm)<th class="pb-2 font-medium text-right">TM420</th>@endif
+                            @if ($lihatDiferd && $lihatTm)<th class="pb-2 font-medium text-right">Markup</th>@endif
+                        </tr>
+                    </thead>
                     <tbody>
                         @foreach ($tiers as $tier)
                             @php $d = $product->effectiveDiferd($tier); $t = $product->effectiveTm420($tier); $m = ($d !== null && $t !== null) ? $t - $d : null; @endphp
                             <tr class="border-t border-sand-100">
                                 <td class="py-2 text-sand-600">{{ $tier->label() }}</td>
                                 @if ($lihatDiferd)<td class="py-2 text-right tnum text-sand-800">{{ $fmt($d) }}</td>@endif
-                                <td class="py-2 text-right tnum text-sand-800">{{ $fmt($t) }}</td>
-                                @if ($lihatDiferd)<td class="py-2 text-right tnum font-medium text-brand-700">{{ $m !== null ? '+'.$fmt($m) : '—' }}</td>@endif
+                                @if ($lihatTm)<td class="py-2 text-right tnum text-sand-800">{{ $fmt($t) }}</td>@endif
+                                @if ($lihatDiferd && $lihatTm)<td class="py-2 text-right tnum font-medium text-brand-700">{{ $m !== null ? '+'.$fmt($m) : '—' }}</td>@endif
                             </tr>
                         @endforeach
                     </tbody>

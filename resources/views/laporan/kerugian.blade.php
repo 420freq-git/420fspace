@@ -21,7 +21,7 @@
             @if ($showTm)
                 <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
                     <div class="flex items-center gap-2">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">TM420</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{{ $labelJual }}</span>
                         <p class="text-sm text-sand-500">Kerugian brand</p>
                     </div>
                     <p class="mt-2 text-2xl font-semibold text-sand-900 tnum">{{ $fmt($totalNilai) }}</p>
@@ -96,12 +96,12 @@
         </div>
         @endif
 
-        {{-- Kerugian TM420: produk retur yang tidak bisa dijual lagi --}}
+        {{-- Kerugian {{ $labelJual }}: produk retur yang tidak bisa dijual lagi --}}
         @if ($showTm)
         <div class="rounded-xl border border-sand-200 bg-white shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-sand-200 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-sm font-semibold text-sand-800">Kerugian TM420 — retur yang tidak bisa dijual</h2>
+                    <h2 class="text-sm font-semibold text-sand-800">Kerugian {{ $labelJual }} — retur yang tidak bisa dijual</h2>
                     <p class="text-xs text-sand-400">Barang kembali dari pembeli dalam kondisi rusak. Brand tetap membayar biaya produksinya.</p>
                 </div>
                 <span class="text-xs text-sand-500">Total <span class="font-semibold text-red-700 tnum">{{ $fmt($totalNilai) }}</span></span>

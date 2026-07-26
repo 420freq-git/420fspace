@@ -15,7 +15,7 @@ use Illuminate\Support\Carbon;
 
 #[Fillable([
     'batch_id', 'product_id', 'nomor_po',
-    'patrun', 'ukuran_rib', 'warna_bahan', 'jenis_bahan', 'supp_bahan', 'warna_benang',
+    'patrun', 'ukuran_rib', 'ukuran_rib_lengan', 'warna_bahan', 'jenis_bahan', 'supp_bahan',
     'cat_sablon', 'finishing', 'desain_depan', 'desain_belakang', 'desain_lengan',
     'label_leher', 'label_bawah', 'slip_label', 'aksesoris', 'care_label', 'hangtag', 'plastik',
     'note', 'status_produksi', 'tahap', 'tahap_updated_at', 'catatan_vendor',

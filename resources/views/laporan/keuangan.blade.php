@@ -20,7 +20,7 @@
         <div class="grid grid-cols-2 lg:grid-cols-{{ min(4, $cardCount) }} gap-5">
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5"><p class="text-sm text-sand-500">Unit terjual (12 bln)</p><p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ number_format($totals['unit'], 0, ',', '.') }}</p></div>
             @if ($showTm)
-                <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5"><p class="text-sm text-sand-500">Nilai jual (TM420)</p><p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ $fmt($totals['nilai_tm']) }}</p></div>
+                <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5"><p class="text-sm text-sand-500">Nilai jual ({{ $labelJual }})</p><p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ $fmt($totals['nilai_tm']) }}</p></div>
             @endif
             @if ($showDiferd)
                 <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5"><p class="text-sm text-sand-500">Hak Diferd</p><p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ $fmt($totals['hak_diferd']) }}</p><p class="mt-1 text-xs text-sand-400">nilai barang terjual × harga Diferd</p></div>
@@ -37,7 +37,7 @@
                         <tr class="border-b border-sand-200 text-left text-xs uppercase tracking-wide text-sand-500">
                             <th class="px-5 py-3 font-semibold">Bulan</th>
                             <th class="px-5 py-3 font-semibold text-center">Unit</th>
-                            @if ($showTm)<th class="px-5 py-3 font-semibold text-right">Nilai TM420</th>@endif
+                            @if ($showTm)<th class="px-5 py-3 font-semibold text-right">Nilai {{ $labelJual }}</th>@endif
                             @if ($showDiferd)<th class="px-5 py-3 font-semibold text-right">Hak Diferd</th>@endif
                             @if ($showFee)<th class="px-5 py-3 font-semibold text-right">Fee 420F</th>@endif
                         </tr>

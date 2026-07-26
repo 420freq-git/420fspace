@@ -39,8 +39,7 @@ class MonitoringProduksiController extends Controller
             //   - tak ada qty yang masih menunggu surat jalan (produced − shipped == 0 pada PO
             //     yang belum ditutup). PO yang sudah terkirim, sisa tak-terkirimnya = reject final.
             $semuaReady = $pos->isNotEmpty() && $pos->every(fn ($p) => $p->tahap->isReady());
-            $sisaKirim = $this->sisaKirim($b, $pos);
-            $selesai = $semuaReady && $sisaKirim === 0;
+            $selesai = $semuaReady && $this->stock->menungguKirimBatch($b) === 0;
 
             $final = $selesai ? $this->infoFinal($b, $pos, $deadlineProd) : null;
 
@@ -87,28 +86,6 @@ class MonitoringProduksiController extends Controller
             ],
             'canUpdate' => $user->isAdmin() || $user->role === Role::Diferd,
         ]);
-    }
-
-    /** Qty yang masih menunggu surat jalan (belum dikirim) pada PO yang belum ditutup. */
-    private function sisaKirim(Batch $b, $pos): int
-    {
-        $kombinasi = [];
-        foreach ($pos as $po) {
-            if ($po->tahap === TahapProduksi::Terkirim) {
-                continue;   // sudah ditutup — sisa tak-terkirimnya reject, bukan menunggu kirim
-            }
-            foreach ($po->sizeItems as $si) {
-                $kombinasi[$po->product_id.'|'.$si->ukuran->value] = [$po->product_id, $si->ukuran->value];
-            }
-        }
-
-        $total = 0;
-        foreach ($kombinasi as [$pid, $uk]) {
-            $total += max(0, $this->stock->producedInBatch($b->id, $pid, $uk)
-                - $this->stock->shippedInBatch($b->id, $pid, $uk));
-        }
-
-        return $total;
     }
 
     /**

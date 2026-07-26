@@ -85,7 +85,7 @@
                                     <td class="px-5 py-2.5 text-center text-sand-700">{{ $it->ukuran->value }}</td>
                                     <td class="px-5 py-2.5 text-right tnum text-sand-600">{{ $it->qty }}</td>
                                     <td class="px-5 py-2.5 text-right">
-                                        <input type="number" name="diterima[{{ $it->id }}]" value="{{ $it->qty }}" data-dikirim="{{ $it->qty }}" min="0" required
+                                        <input type="number" name="diterima[{{ $it->id }}]" value="{{ $it->qty }}" data-dikirim="{{ $it->qty }}" min="0" max="{{ $it->qty }}" required
                                                class="w-24 text-right rounded-lg border-sand-300 text-sm focus:border-brand-600 focus:ring-brand-600 tnum">
                                     </td>
                                 </tr>

@@ -56,4 +56,15 @@ class User extends Authenticatable
     {
         return $this->role !== Role::Tm420;
     }
+
+    /**
+     * Harga TM420 (retail) hanya relevan bagi brand eksternal yang ditagih retail.
+     * VOOJAH (brand milik sendiri) ditagih harga modal (diferd) dengan fee 420F = 0, jadi kolom
+     * retail tak berarti apa-apa baginya — sembunyikan. VOOJAH tetap melihat kolom Diferd, yang
+     * memang harga yang ia bayar (hargaTagihan untuk brand milik-sendiri = effectiveDiferd).
+     */
+    public function bolehLihatHargaTm420(): bool
+    {
+        return $this->role !== Role::Voojah;
+    }
 }

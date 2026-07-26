@@ -60,12 +60,17 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions.
+    |
+    | Bisnis ini berjalan di WIB — `APP_TIMEZONE=Asia/Jakarta`. Dulu nilai ini
+    | dipaku 'UTC' sehingga APP_TIMEZONE di .env diabaikan diam-diam, dan setiap
+    | tindakan antara 00:00–07:00 WIB tercatat sebagai HARI SEBELUMNYA (tanggal
+    | invoice, penomoran invoice, perbandingan deadline, pengelompokan rekonsiliasi
+    | mingguan, jam di audit log). Diperbaiki 23 Jul 2026 sebelum go-live.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------

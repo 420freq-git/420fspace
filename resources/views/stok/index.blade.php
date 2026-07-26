@@ -17,6 +17,22 @@
 
         @php $fmt = fn ($n) => 'Rp '.number_format((int) $n, 0, ',', '.'); @endphp
 
+        {{-- Filter brand (420F & Diferd) — pantau stok per brand tanpa menu baru. Total = "Semua". --}}
+        @if ($brandTabs->count() > 1)
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('stok.index') }}"
+                   class="inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium {{ ! $brandAktif ? 'bg-brand-700 text-white' : 'border border-sand-300 bg-white text-sand-700 hover:bg-sand-100' }}">
+                    Semua brand
+                </a>
+                @foreach ($brandTabs as $b)
+                    <a href="{{ route('stok.index', ['brand' => $b->id]) }}"
+                       class="inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium {{ $brandAktif === $b->id ? 'bg-brand-700 text-white' : 'border border-sand-300 bg-white text-sand-700 hover:bg-sand-100' }}">
+                        {{ $b->nama }}
+                    </a>
+                @endforeach
+            </div>
+        @endif
+
         {{-- Ringkasan stok --}}
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
             <div class="rounded-xl border border-brand-200 bg-brand-50 shadow-sm p-5">
@@ -58,9 +74,9 @@
                     <p class="mt-1 text-xs text-sand-400">selesai produksi, surat jalan belum dibuat</p>
                 </div>
                 <div class="p-5 {{ $totalReject > 0 ? 'bg-red-50/60' : '' }}">
-                    <p class="text-sm {{ $totalReject > 0 ? 'text-red-700' : 'text-sand-500' }}">Reject produksi</p>
+                    <p class="text-sm {{ $totalReject > 0 ? 'text-red-700' : 'text-sand-500' }}">Reject &amp; kurang terima</p>
                     <p class="mt-1 text-2xl font-semibold tnum {{ $totalReject > 0 ? 'text-red-800' : 'text-sand-900' }}">{{ number_format($totalReject, 0, ',', '.') }}</p>
-                    <p class="mt-1 text-xs {{ $totalReject > 0 ? 'text-red-600' : 'text-sand-400' }}">batch berjalan · ditanggung vendor</p>
+                    <p class="mt-1 text-xs {{ $totalReject > 0 ? 'text-red-600' : 'text-sand-400' }}">reject produksi + kurang saat terima · ditanggung vendor</p>
                     @if ($totalRejectArsip > 0)
                         @php $bolehLihatKerugian = in_array(auth()->user()->role, [\App\Enums\Role::Admin, \App\Enums\Role::Tm420], true); @endphp
                         <p class="mt-1 text-xs text-sand-400">
@@ -92,7 +108,7 @@
                             <tr class="border-b border-sand-200 text-left text-xs uppercase tracking-wide text-sand-500">
                                 <th class="px-5 py-3 font-semibold">Artikel</th>
                                 <th class="px-5 py-3 font-semibold text-center">Menunggu kirim</th>
-                                <th class="px-5 py-3 font-semibold text-center">Reject</th>
+                                <th class="px-5 py-3 font-semibold text-center" title="Reject produksi + kurang saat penerimaan (ditanggung vendor)">Reject/kurang</th>
                                 <th class="px-5 py-3 font-semibold text-center">Di jalan</th>
                                 <th class="px-5 py-3 font-semibold text-center">Belum cair</th>
                                 <th class="px-5 py-3 font-semibold text-center">Siap dijual</th>

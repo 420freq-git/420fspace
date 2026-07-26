@@ -42,7 +42,23 @@ class StokController extends Controller
         $query = Product::with(['brand', 'category.prices'])->where('aktif', true)->orderBy('nama_artikel');
 
         $user = $request->user();
-        if (in_array($user->role, [Role::Tm420, Role::Voojah], true) && $user->brand_id) {
+        // TM/VOOJAH terkunci ke brand-nya. 420F & Diferd melihat semua brand, dengan opsi
+        // memfilter per brand (tab di halaman) — Diferd butuh pantau stok tiap brand + total,
+        // tanpa menu sidebar baru.
+        $lihatSemuaBrand = in_array($user->role, [Role::Admin, Role::Diferd], true);
+        $brandTabs = collect();
+        $brandAktif = null;
+
+        if ($lihatSemuaBrand) {
+            $brandTabs = \App\Models\Brand::whereHas('products', fn ($q) => $q->where('aktif', true))
+                ->orderBy('nama')->get();
+            $brandAktif = $request->integer('brand') ?: null;
+            if ($brandAktif && $brandTabs->contains('id', $brandAktif)) {
+                $query->where('brand_id', $brandAktif);
+            } else {
+                $brandAktif = null;
+            }
+        } elseif (in_array($user->role, [Role::Tm420, Role::Voojah], true) && $user->brand_id) {
             $query->where('brand_id', $user->brand_id);
         }
 
@@ -62,8 +78,12 @@ class StokController extends Controller
                 $vendor = $this->stock->unshippedTotal($p->id, $u->value);
                 $jalan = $this->stock->inTransitTotal($p->id, $u->value);
                 $belumCair = $this->stock->soldUnsettledTotal($p->id, $u->value);
-                $reject = $this->stock->rejectTotal($p->id, $u->value);
-                $rejectArsip = $this->stock->rejectSelesaiTotal($p->id, $u->value);
+                // "Reject" di monitor stok = kerugian vendor total: reject produksi (tak dikirim)
+                // + kurang/cacat saat penerimaan (dikirim tapi tak diterima). Sama dgn Laporan Kerugian.
+                $reject = $this->stock->rejectTotal($p->id, $u->value)
+                    + $this->stock->shortfallActiveTotal($p->id, $u->value);
+                $rejectArsip = $this->stock->rejectSelesaiTotal($p->id, $u->value)
+                    + $this->stock->shortfallSelesaiTotal($p->id, $u->value);
                 $buyout = $this->stock->boughtOutTotal($p->id, $u->value);   // sudah jadi milik TM
 
                 $sisaSize = $terima - $sold - $buyout;   // stok jual di tangan brand, di luar yg di-buyout
@@ -150,6 +170,8 @@ class StokController extends Controller
             'basisHarga' => $pakaiTm ? 'harga dari 420F' : 'harga ke 420F',
             'reorderCount' => $reorderCount,
             'tipisCount' => $tipisCount,
+            'brandTabs' => $brandTabs,
+            'brandAktif' => $brandAktif,
         ]);
     }
 

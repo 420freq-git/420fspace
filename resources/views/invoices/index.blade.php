@@ -2,9 +2,13 @@
     @php $fmt = fn ($n) => 'Rp '.number_format((int) $n, 0, ',', '.'); @endphp
     <x-slot name="header">
         <div class="flex items-center justify-between gap-4">
+            @php
+                // Judul ikut brand penonton (TM420/VOOJAH); 420F melihat tagihan semua brand.
+                $namaBrand = auth()->user()->brand?->nama;
+            @endphp
             <div>
-                <h1 class="text-lg font-semibold text-sand-900">Invoice TM</h1>
-                <p class="text-xs text-sand-500">Tagihan ke TM420 atas pesanan yang sudah cair.</p>
+                <h1 class="text-lg font-semibold text-sand-900">{{ $namaBrand ? 'Invoice '.$namaBrand : 'Invoice brand' }}</h1>
+                <p class="text-xs text-sand-500">Tagihan ke {{ $namaBrand ?? 'brand' }} atas pesanan yang sudah cair.</p>
             </div>
             @if ($isAdmin)
                 <form method="POST" action="{{ route('invoices.generate') }}">
@@ -66,7 +70,7 @@
                                     <td class="px-5 py-3.5"><a href="{{ route('invoices.show', $inv) }}" class="font-medium text-sand-900 hover:text-brand-700 tnum">{{ $inv->nomor }}</a></td>
                                     <td class="px-5 py-3.5 text-sand-600">{{ $inv->brand->nama }}</td>
                                     <td class="px-5 py-3.5 text-sand-600 tnum">{{ $inv->tanggal_terbit->format('d/m/Y') }}</td>
-                                    <td class="px-5 py-3.5 text-center tnum text-sand-700">{{ $inv->isBuyout() ? 'Buy-out' : $inv->orders->count() }}</td>
+                                    <td class="px-5 py-3.5 text-center text-sand-700">{{ $inv->isManual() ? $inv->labelJenis() : $inv->orders->count().' pesanan' }}</td>
                                     <td class="px-5 py-3.5 text-right tnum text-sand-800">{{ $fmt($inv->total) }}</td>
                                     <td class="px-5 py-3.5 text-center">
                                         @if ($inv->isLunas())

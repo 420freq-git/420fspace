@@ -5,7 +5,14 @@
             <div class="flex items-center gap-2 min-w-0">
                 <x-back-link :href="route('invoices.index')" />
                 <div class="min-w-0">
-                    <h1 class="text-lg font-semibold text-sand-900 truncate tnum">{{ $invoice->nomor }}</h1>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg font-semibold text-sand-900 truncate tnum">{{ $invoice->nomor }}</h1>
+                        @if ($invoice->isCash())
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">{{ $invoice->labelJenis() }}</span>
+                        @elseif ($invoice->isBuyout())
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Buy-out</span>
+                        @endif
+                    </div>
                     <p class="text-xs text-sand-500">Tagihan ke {{ $invoice->brand->nama }} · terbit {{ $invoice->tanggal_terbit->format('d/m/Y') }}</p>
                 </div>
             </div>
@@ -28,7 +35,7 @@
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
                 <p class="text-sm text-sand-500">Ditagih ke</p>
                 <p class="mt-1 text-lg font-semibold text-sand-900">{{ $invoice->brand->nama }}</p>
-                <p class="text-xs text-sand-400">{{ $invoice->isBuyout() ? 'Buy-out sisa stok' : $invoice->orders->count().' pesanan' }} · {{ number_format($invoice->total_qty, 0, ',', '.') }} pcs</p>
+                <p class="text-xs text-sand-400">{{ $invoice->isManual() ? $invoice->labelJenis() : $invoice->orders->count().' pesanan' }} · {{ number_format($invoice->total_qty, 0, ',', '.') }} pcs</p>
             </div>
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
                 <p class="text-sm text-sand-500">Total tagihan</p>
@@ -103,7 +110,7 @@
                             <th class="px-5 py-3 font-semibold">Tanggal</th>
                             <th class="px-5 py-3 font-semibold">Channel</th>
                             <th class="px-5 py-3 font-semibold text-center">Qty</th>
-                            <th class="px-5 py-3 font-semibold text-right">Nilai TM420</th>
+                            <th class="px-5 py-3 font-semibold text-right">Nilai tagihan</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-sand-100">
@@ -127,11 +134,50 @@
                             <tr class="hover:bg-sand-50/50 align-top">
                                 <td class="px-5 py-3">
                                     <div class="text-sand-700">Buy-out sisa stok</div>
-                                    <div class="mt-0.5 text-xs text-sand-500">{{ $invoice->catatan }}</div>
+                                    @if ($invoice->catatan)
+                                        <div class="mt-0.5 text-xs text-sand-500">{{ $invoice->catatan }}</div>
+                                    @endif
+
+                                    {{-- Rincian artikel: direkonstruksi dari (diterima − terjual) batch,
+                                         karena stok batch buy-out sudah keluar dari pool jual. --}}
+                                    @if (! empty($rincianBuyout['baris']))
+                                        <div class="mt-1.5 space-y-0.5">
+                                            @foreach ($rincianBuyout['baris'] as $b)
+                                                <div class="text-xs text-sand-500">
+                                                    {{ $b['product']->nama_artikel ?? 'Artikel dihapus' }}
+                                                    <span class="text-sand-400">·
+                                                        @foreach ($b['sizes'] as $s){{ $s['ukuran'] }} × {{ $s['qty'] }}@if (! $loop->last), @endif @endforeach
+                                                        ({{ number_format($b['pcs'], 0, ',', '.') }} pcs · {{ $fmt($b['nilai']) }})
+                                                    </span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+
+                                        @if ($rincianBuyout['pcs'] !== (int) $invoice->pcs_manual || $rincianBuyout['nilai'] !== (int) $invoice->jumlah_manual)
+                                            <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                                Rincian di atas dihitung ulang dari data stok terkini dan berbeda dengan nilai
+                                                yang tercatat saat buy-out ({{ number_format($invoice->pcs_manual, 0, ',', '.') }} pcs ·
+                                                {{ $fmt($invoice->jumlah_manual) }}). <span class="font-medium">Yang mengikat adalah nilai
+                                                tercatat</span>; selisih biasanya karena ada retur setelah buy-out.
+                                            </div>
+                                        @endif
+                                    @endif
                                 </td>
                                 <td class="px-5 py-3 text-sand-600 tnum">{{ $invoice->tanggal_terbit->format('d/m/Y') }}</td>
                                 <td class="px-5 py-3 text-sand-600">Buy-out</td>
                                 <td class="px-5 py-3 text-center tnum text-sand-700">{{ $invoice->pcs_manual }}</td>
+                                <td class="px-5 py-3 text-right tnum text-sand-800">{{ $fmt($invoice->jumlah_manual) }}</td>
+                            </tr>
+                        @elseif ($invoice->isCash())
+                            {{-- Tagihan batch cash (DP atau pelunasan) — beli putus, dibayar bertahap. --}}
+                            <tr class="hover:bg-sand-50/50 align-top">
+                                <td class="px-5 py-3">
+                                    <div class="font-medium text-sand-800">{{ $invoice->labelJenis() }}</div>
+                                    <div class="mt-0.5 text-xs text-sand-500">Pembayaran cash (beli putus){{ $invoice->batch ? ' · batch '.$invoice->batch->nomor_batch : '' }}</div>
+                                </td>
+                                <td class="px-5 py-3 text-sand-600 tnum">{{ $invoice->tanggal_terbit->format('d/m/Y') }}</td>
+                                <td class="px-5 py-3 text-sand-600">Cash</td>
+                                <td class="px-5 py-3 text-center tnum text-sand-700">{{ $invoice->pcs_manual ?: '—' }}</td>
                                 <td class="px-5 py-3 text-right tnum text-sand-800">{{ $fmt($invoice->jumlah_manual) }}</td>
                             </tr>
                         @endif

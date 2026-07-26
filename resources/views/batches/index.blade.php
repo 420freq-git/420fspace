@@ -38,7 +38,7 @@
                                 <th class="px-5 py-3 font-semibold">Tgl order</th>
                                 <th class="px-5 py-3 font-semibold">Deadline produksi</th>
                                 <th class="px-5 py-3 font-semibold text-center">PO</th>
-                                <th class="px-5 py-3 font-semibold text-center">Total qty</th>
+                                <th class="px-5 py-3 font-semibold text-center">Terkirim</th>
                                 <th class="px-5 py-3 font-semibold text-center">Status</th>
                                 <th class="px-5 py-3 font-semibold text-right">Aksi</th>
                             </tr>
@@ -71,7 +71,11 @@
                                         <div class="text-[11px] text-sand-400 mt-0.5">Pelunasan: {{ $batch->deadline->format('d/m/Y') }}</div>
                                     </td>
                                     <td class="px-5 py-3.5 text-center tnum text-sand-700">{{ $batch->purchaseOrders->count() }}</td>
-                                    <td class="px-5 py-3.5 text-center tnum text-sand-700">{{ number_format($batch->total_qty, 0, ',', '.') }}</td>
+                                    <td class="px-5 py-3.5 text-center">
+                                        @php $pg = $progres[$batch->id] ?? ['terkirim' => 0, 'diproduksi' => 0]; @endphp
+                                        <div class="tnum text-sand-800">{{ number_format($pg['terkirim'], 0, ',', '.') }}</div>
+                                        <div class="text-xs text-sand-400">dari {{ number_format($pg['diproduksi'], 0, ',', '.') }} pcs</div>
+                                    </td>
                                     <td class="px-5 py-3.5 text-center">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $batch->status->badgeClasses() }}">{{ $batch->status->label() }}</span>
                                     </td>

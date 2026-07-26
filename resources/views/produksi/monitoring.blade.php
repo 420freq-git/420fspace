@@ -49,7 +49,8 @@
         @php $adaBerjalan = $rows->firstWhere('selesai', false); $adaSelesai = $rows->firstWhere('selesai', true); @endphp
         @forelse ($rows->where('selesai', false) as $row)
             @php $batch = $row['batch']; $sisa = $row['sisaHari']; @endphp
-            <div class="rounded-xl border {{ $row['telat'] ? 'border-red-200' : ($row['mepet'] ? 'border-amber-200' : 'border-sand-200') }} bg-white shadow-sm overflow-hidden">
+            <div class="rounded-xl border {{ $row['telat'] ? 'border-red-200' : ($row['mepet'] ? 'border-amber-200' : 'border-sand-200') }} bg-white shadow-sm overflow-hidden"
+                 data-batch-selesai="{{ $batch->id }}" data-selesai-nilai="0">
                 {{-- Header batch --}}
                 <div class="px-5 py-4 border-b border-sand-200 flex flex-wrap items-center gap-x-6 gap-y-3">
                     <div class="min-w-0">
@@ -77,10 +78,11 @@
                     <div class="w-40 shrink-0">
                         <div class="flex justify-between text-[11px] mb-1">
                             <span class="text-sand-400">Progress</span>
-                            <span class="font-semibold text-sand-700 tnum">{{ $row['progress'] }}%</span>
+                            <span class="font-semibold text-sand-700 tnum" data-batch-progress-text="{{ $batch->id }}">{{ $row['progress'] }}%</span>
                         </div>
                         <div class="h-2 rounded-full bg-sand-100 overflow-hidden">
-                            <div class="h-full rounded-full {{ $row['telat'] ? 'bg-red-500' : 'bg-brand-500' }}" style="width: {{ $row['progress'] }}%"></div>
+                            <div class="h-full rounded-full transition-all duration-300 {{ $row['telat'] ? 'bg-red-500' : 'bg-brand-500' }}"
+                                 style="width: {{ $row['progress'] }}%" data-batch-progress="{{ $batch->id }}"></div>
                         </div>
                     </div>
                 </div>
@@ -106,7 +108,8 @@
                 <div class="space-y-3">
                     @foreach ($rows->where('selesai', true) as $row)
                         @php $batch = $row['batch']; $f = $row['final']; @endphp
-                        <div x-data="{ open: false }" class="rounded-xl border border-sand-200 bg-white shadow-sm overflow-hidden">
+                        <div x-data="{ open: false }" class="rounded-xl border border-sand-200 bg-white shadow-sm overflow-hidden"
+                             data-batch-selesai="{{ $batch->id }}" data-selesai-nilai="1">
                             <div class="px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-2">
                                 <div class="min-w-0">
                                     <a href="{{ route('batches.show', $batch) }}" class="font-semibold text-sand-900 hover:text-brand-700">{{ $batch->nomor_batch }}</a>
@@ -166,16 +169,6 @@
         @endif
     </div>
 
-    {{-- Pertahankan posisi scroll setelah update tahap (form me-reload halaman). --}}
-    <script>
-        (function () {
-            if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-            var y = sessionStorage.getItem('poScroll');
-            if (y === null) return;
-            sessionStorage.removeItem('poScroll');
-            var restore = function () { window.scrollTo(0, parseInt(y, 10)); };
-            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', restore);
-            else restore();
-        })();
-    </script>
+    {{-- Ganti tahap ditangani tanpa reload di resources/js/app.js — tak perlu lagi menambal
+         posisi scroll lewat sessionStorage. --}}
 </x-app-layout>

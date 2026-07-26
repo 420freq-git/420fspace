@@ -148,13 +148,6 @@
                             <dd class="tnum font-semibold {{ $money['sisa'] > 0 ? 'text-amber-700' : 'text-brand-700' }}">{{ $money['sisa'] > 0 ? $rupiah($money['sisa']) : '✓' }}</dd>
                         </div>
                     </dl>
-                    <div class="mx-5 mb-5 rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
-                        <div class="flex justify-between text-sm">
-                            <span class="text-blue-700">Modal produksi (deposit 420F)</span>
-                            <span class="tnum font-medium text-blue-800">{{ $rupiah($money['modal']) }}</span>
-                        </div>
-                        <p class="mt-1 text-xs text-blue-600">dikelola terpisah — bukan hutang, direkonsiliasi saat batch selesai</p>
-                    </div>
                 </div>
             </div>
         @else

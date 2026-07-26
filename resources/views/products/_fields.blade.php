@@ -85,7 +85,10 @@
     </section>
 
     {{-- 3. Harga --}}
-    @php $lihatDiferd = auth()->user()->bolehLihatHargaDiferd(); @endphp
+    @php
+        $lihatDiferd = auth()->user()->bolehLihatHargaDiferd();
+        $lihatTm = auth()->user()->bolehLihatHargaTm420();
+    @endphp
     <section class="space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400">Harga</h2>
 
@@ -93,17 +96,20 @@
         <div x-show="!hargaKhusus" class="rounded-lg border border-sand-200 bg-sand-50/60 p-4">
             <p class="text-xs text-sand-500 mb-3">Harga mengikuti kategori terpilih.</p>
             <template x-if="categoryId">
-                @if ($lihatDiferd)
+                @if ($lihatDiferd && $lihatTm)
+                    {{-- 420F / Diferd: modal & retail berdampingan --}}
                     <div class="grid grid-cols-3 gap-x-4 gap-y-1.5 text-sm max-w-md">
                         <span></span><span class="text-xs font-medium text-sand-500">Diferd</span><span class="text-xs font-medium text-sand-500">TM420</span>
                         <span class="text-sand-600">S–XL</span><span class="tnum text-sand-800" x-text="fmt(price('sxl','d'))"></span><span class="tnum text-sand-800" x-text="fmt(price('sxl','t'))"></span>
                         <span class="text-sand-600">XXL</span><span class="tnum text-sand-800" x-text="fmt(price('xxl','d'))"></span><span class="tnum text-sand-800" x-text="fmt(price('xxl','t'))"></span>
                     </div>
                 @else
+                    {{-- TM420 → retail (t); VOOJAH → modal (d), harga yang ia bayar --}}
+                    @php $kolom = $lihatTm ? 't' : 'd'; @endphp
                     <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm max-w-xs">
                         <span></span><span class="text-xs font-medium text-sand-500">Harga</span>
-                        <span class="text-sand-600">S–XL</span><span class="tnum text-sand-800" x-text="fmt(price('sxl','t'))"></span>
-                        <span class="text-sand-600">XXL</span><span class="tnum text-sand-800" x-text="fmt(price('xxl','t'))"></span>
+                        <span class="text-sand-600">S–XL</span><span class="tnum text-sand-800" x-text="fmt(price('sxl','{{ $kolom }}'))"></span>
+                        <span class="text-sand-600">XXL</span><span class="tnum text-sand-800" x-text="fmt(price('xxl','{{ $kolom }}'))"></span>
                     </div>
                 @endif
             </template>
@@ -120,7 +126,14 @@
                 <div class="rounded-lg border border-sand-200 p-4">
                     <div class="text-sm font-medium text-sand-800 mb-3">Tier <span class="text-brand-700">{{ $tl }}</span></div>
                     <div class="space-y-3">
-                        @foreach ($lihatDiferd ? ['diferd' => 'Diferd', 'tm420' => 'TM420'] : ['tm420' => 'TM420'] as $kind => $klabel)
+                        @php
+                            // Kolom harga yang boleh diisi per peran: VOOJAH hanya modal (diferd),
+                            // TM420 hanya retail (tm420), 420F/Diferd keduanya.
+                            $kinds = [];
+                            if ($lihatDiferd) $kinds['diferd'] = $lihatTm ? 'Diferd' : 'Harga';
+                            if ($lihatTm) $kinds['tm420'] = 'TM420';
+                        @endphp
+                        @foreach ($kinds as $kind => $klabel)
                             @php $col = "harga_{$kind}_{$tk}_override"; @endphp
                             <div>
                                 <label class="block text-xs font-medium text-sand-600">Harga {{ $klabel }}</label>
@@ -176,8 +189,8 @@
         <div x-show="open" x-cloak class="border-t border-sand-200 p-4 space-y-5">
             <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 @foreach ([
-                    'patrun' => 'Patrun', 'ukuran_rib' => 'Ukuran RIB', 'warna_bahan' => 'Warna bahan',
-                    'jenis_bahan' => 'Jenis bahan', 'supp_bahan' => 'Supp bahan', 'warna_benang' => 'Warna benang',
+                    'patrun' => 'Patrun', 'ukuran_rib' => 'Ukuran RIB leher', 'ukuran_rib_lengan' => 'Ukuran RIB lengan',
+                    'warna_bahan' => 'Warna bahan', 'jenis_bahan' => 'Jenis bahan', 'supp_bahan' => 'Supp bahan',
                     'cat_sablon' => 'Cat sablon', 'finishing' => 'Finishing',
                     'desain_depan' => 'Desain depan', 'desain_belakang' => 'Desain belakang', 'desain_lengan' => 'Desain lengan',
                 ] as $f => $label)

@@ -43,9 +43,10 @@
     .design .big { font-size: 15px; font-weight: bold; }
     .design .off { color: #9a9e92; }
 
-    /* label & aksesoris — pil terisi (ADA) vs redup (TIDAK) agar jelas terbaca */
-    .chips td { padding: 4px 2px; }
-    .chip { display: inline-block; border-radius: 9px; padding: 4px 11px; font-size: 9px; margin: 0 5px 6px 0; }
+    /* label & aksesoris — pil terisi (ADA) vs redup (TIDAK); dibagi rata selebar halaman */
+    .chips { table-layout: fixed; }
+    .chips td { padding: 0 3px; }
+    .chip { display: block; border-radius: 9px; padding: 5px 4px; font-size: 8.5px; text-align: center; }
     .chip.yes { background: #2e5a22; color: #ffffff; font-weight: bold; }
     .chip.no { background: #f4f2eb; color: #a7aa9f; border: 0.75px solid #dcd9cc; }
 
@@ -59,10 +60,27 @@
     .grid .total td { background: #ebf1e3; font-weight: bold; border-top: 1.5px solid #1b1d19; }
     .grid .total .g { color: #2e5a22; }
 
+    /* size chart — tabel qty (kiri) + gambar template & ukuran badan (kanan) */
+    .scwrap td { vertical-align: top; }
+    .qtytbl th { background: #f4f2eb; color: #6e7267; border: 0.75px solid #e4e2d8; padding: 4px 6px;
+                 font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .qtytbl td { border: 0.75px solid #e4e2d8; padding: 4px 6px; text-align: center; font-size: 9.5px; }
+    .qtytbl .sz { text-align: left; font-weight: bold; }
+    .qtytbl .sku { text-align: left; font-family: DejaVu Sans Mono, monospace; font-size: 8px; color: #6e7267; }
+    .qtytbl .z { color: #b9b6a9; }
+    .qtytbl .total td { background: #ebf1e3; font-weight: bold; border-top: 1.5px solid #1b1d19; }
+    .qtytbl .total .g { color: #2e5a22; }
+    .chartimg { width: 100%; max-width: 128px; height: auto; }
+    .sctbl th { background: #f4f2eb; color: #6e7267; border: 0.75px solid #e4e2d8; padding: 4px 6px;
+                font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .sctbl td { border: 0.75px solid #e4e2d8; padding: 4px 6px; text-align: center; font-size: 9.5px; }
+    .sctbl .sz { font-weight: bold; }
+    .sc-cap { font-size: 7px; color: #6e7267; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+
     /* mockups & desain — gambar mengisi penuh lebar cell (upload sesuai rasio cell) */
     .mock { table-layout: fixed; }
-    .mock td { border: 1px dashed #c7c5b9; text-align: center; vertical-align: middle; padding: 6px; height: 252px; }
-    .mock img { display: block; width: 100%; height: auto; max-height: 220px; margin: 0 auto; }
+    .mock td { border: 1px dashed #c7c5b9; text-align: center; vertical-align: middle; padding: 6px; height: 230px; }
+    .mock img { display: block; width: 100%; height: auto; max-height: 208px; margin: 0 auto; }
     .mock .twin img { display: inline-block; width: 48.5%; }   /* dua mockup berdampingan */
     .cap { font-size: 7px; color: #6e7267; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
 
@@ -83,7 +101,10 @@
         ? '<span class="chip yes">&#10003; '.$label.'</span>'
         : '<span class="chip no">&#10007; '.$label.'</span>';
     $ukurans = \App\Enums\Ukuran::cases();
-    $jenises = \App\Enums\JenisProduksi::cases();
+    $chartImg = function ($path) {
+        if (! $path || ! is_file($path)) return null;
+        return 'data:'.mime_content_type($path).';base64,'.base64_encode(file_get_contents($path));
+    };
 @endphp
 
 @forelse ($batch->purchaseOrders as $po)
@@ -92,6 +113,8 @@
         $mockups = $p ? $p->filesOfType(\App\Enums\ProductFileType::Mockup)->filter(fn ($f) => $f->is_image)->values() : collect();
         $desain = $p ? $p->filesOfType(\App\Enums\ProductFileType::Desain)->filter(fn ($f) => $f->is_image)->first() : null;
         $skuFor = fn ($u) => $p?->sizes->firstWhere('ukuran', $u->value)?->sku_turunan;
+        $chart = \App\Support\SizeChart::forCategory($p?->category);
+        $chartSrc = $chartImg(\App\Support\SizeChart::imagePath($p?->category));
     @endphp
     <div class="po">
 
@@ -120,7 +143,8 @@
             </tr>
             <tr>
                 <td colspan="2"><span class="lbl">Nama artikel</span><br><span class="val">{{ $p->nama_artikel ?? '—' }}</span></td>
-                <td><span class="lbl">Kategori</span><br><span class="val">{{ $p?->category?->nama ?? '—' }}</span></td>
+                <td><span class="lbl">Kategori</span><br><span class="val">{{ $p?->category?->nama ?? '—' }}</span>
+                    <br><span class="lbl" style="margin-top:3px; display:inline-block">Jenis &middot; {{ $p?->category?->jenisProduksi()->label() ?? '—' }}</span></td>
                 <td><span class="lbl">SKU induk</span><br><span class="val mono">{{ $p?->sku_induk ?? '—' }}</span></td>
             </tr>
         </table>
@@ -138,11 +162,11 @@
             </tr>
             <tr>
                 <td class="k">Supp bahan</td><td class="v">{{ $po->supp_bahan ?: '—' }}</td><td class="gap"></td>
-                <td class="k">Ukuran RIB</td><td class="v">{{ $po->ukuran_rib ?: '—' }}</td>
+                <td class="k">Ukuran RIB leher</td><td class="v">{{ $po->ukuran_rib ?: '—' }}</td>
             </tr>
             <tr>
-                <td class="k">Warna benang</td><td class="v">{{ $po->warna_benang ?: '—' }}</td><td class="gap"></td>
-                <td class="k">Warna bahan</td><td class="v">{{ $po->warna_bahan ?: '—' }}</td>
+                <td class="k">Warna bahan</td><td class="v">{{ $po->warna_bahan ?: '—' }}</td><td class="gap"></td>
+                <td class="k">Ukuran RIB lengan</td><td class="v">{{ $po->ukuran_rib_lengan ?: '—' }}</td>
             </tr>
         </table>
 
@@ -160,50 +184,66 @@
         <div class="sec-h">Label &amp; aksesoris</div>
         <table class="chips">
             <tr>
-                <td>
-                    {!! $chip('Label leher', $po->label_leher) !!}
-                    {!! $chip('Label bawah', $po->label_bawah) !!}
-                    {!! $chip('Slip label', $po->slip_label) !!}
-                    {!! $chip('Aksesoris', $po->aksesoris) !!}
-                    {!! $chip('Care label', $po->care_label) !!}
-                    {!! $chip('Hangtag', $po->hangtag) !!}
-                    {!! $chip('Plastik', $po->plastik) !!}
-                </td>
+                <td>{!! $chip('Label leher', $po->label_leher) !!}</td>
+                <td>{!! $chip('Label bawah', $po->label_bawah) !!}</td>
+                <td>{!! $chip('Slip label', $po->slip_label) !!}</td>
+                <td>{!! $chip('Aksesoris', $po->aksesoris) !!}</td>
+                <td>{!! $chip('Care label', $po->care_label) !!}</td>
+                <td>{!! $chip('Hangtag', $po->hangtag) !!}</td>
+                <td>{!! $chip('Plastik', $po->plastik) !!}</td>
             </tr>
         </table>
 
-        {{-- Rincian ukuran --}}
-        <div class="sec-h">Rincian ukuran</div>
-        <table class="grid">
-            <thead>
-                <tr>
-                    <th style="text-align:left">Size</th>
-                    <th style="text-align:left">SKU turunan</th>
-                    @foreach ($jenises as $j)<th>{{ $j->label() }}</th>@endforeach
-                    <th>Subtotal</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($ukurans as $u)
-                    <tr>
-                        <td class="sz">{{ $u->value }}</td>
-                        <td class="sku">{{ $skuFor($u) ?: '—' }}</td>
-                        @foreach ($jenises as $j)
-                            @php $q = $po->qtyFor($u, $j); @endphp
-                            <td class="{{ $q ? '' : 'z' }}">{{ $q ?: 0 }}</td>
-                        @endforeach
-                        <td>{{ $po->totalPerUkuran($u) ?: 0 }}</td>
-                    </tr>
-                @endforeach
-                <tr class="total">
-                    <td class="sz" colspan="2">TOTAL</td>
-                    @foreach ($jenises as $j)
-                        @php $sum = 0; foreach ($ukurans as $u) { $sum += $po->qtyFor($u, $j); } @endphp
-                        <td>{{ $sum ?: 0 }}</td>
-                    @endforeach
-                    <td class="g">{{ $po->total_qty }}</td>
-                </tr>
-            </tbody>
+        {{-- Rincian ukuran & size chart --}}
+        <div class="sec-h">Rincian ukuran &amp; size chart</div>
+        <table class="scwrap">
+            <tr>
+                {{-- Qty pesanan per ukuran (jenis produksi otomatis dari kategori) --}}
+                <td style="width:37%; padding-right:14px;">
+                    <table class="qtytbl">
+                        <thead>
+                            <tr><th style="text-align:left">Size</th><th style="text-align:left">SKU turunan</th><th>Qty</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($ukurans as $u)
+                                @php $q = $po->totalPerUkuran($u); @endphp
+                                <tr>
+                                    <td class="sz">{{ $u->value }}</td>
+                                    <td class="sku">{{ $skuFor($u) ?: '—' }}</td>
+                                    <td class="{{ $q ? '' : 'z' }}">{{ $q ?: 0 }}</td>
+                                </tr>
+                            @endforeach
+                            <tr class="total"><td class="sz" colspan="2">TOTAL</td><td class="g">{{ $po->total_qty }}</td></tr>
+                        </tbody>
+                    </table>
+                </td>
+                {{-- Size chart: gambar titik ukur + tabel ukuran badan (per kategori) --}}
+                <td style="width:63%">
+                    <table>
+                        <tr>
+                            <td style="width:33%; text-align:center; vertical-align:top; padding-right:8px;">
+                                @if ($chartSrc)
+                                    <img class="chartimg" src="{{ $chartSrc }}">
+                                    <div class="sc-cap">Titik ukur</div>
+                                @endif
+                            </td>
+                            <td style="vertical-align:top;">
+                                <table class="sctbl">
+                                    <thead>
+                                        <tr><th>Size</th>@foreach ($chart['kolom'] as $k)<th>{{ $k }}</th>@endforeach</tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($chart['baris'] as $sz => $vals)
+                                            <tr><td class="sz">{{ $sz }}</td>@foreach ($vals as $v)<td>{{ $v }}</td>@endforeach</tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                <div class="sc-cap" style="margin-top:4px;">Ukuran badan dalam cm &middot; {{ $p?->category?->nama ?? '—' }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
         </table>
 
         {{-- Mockups & desain — jaga satu blok agar tak terpotong antar-halaman --}}

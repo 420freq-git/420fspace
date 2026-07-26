@@ -17,7 +17,7 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::with(['brand', 'category.prices'])->withCount('sizes')->orderBy('nama_artikel');
+        $query = Product::with(['brand', 'category.prices', 'spec', 'files'])->withCount('sizes')->orderBy('nama_artikel');
 
         // TM420 hanya lihat produk brand-nya
         $user = $request->user();
@@ -202,13 +202,16 @@ class ProductController extends Controller
             'harga_tm420_sxl_override', 'harga_tm420_xxl_override',
         ];
 
-        // TM tidak melihat/mengirim field diferd — pertahankan override diferd yang ada supaya
-        // tidak terhapus saat TM menyimpan (harga vendor adalah urusan 420F).
+        // Peran yang tak melihat suatu kolom juga tak mengirimnya — pertahankan nilai lamanya
+        // supaya tak terhapus saat menyimpan. TM tak mengirim diferd (harga vendor = urusan 420F);
+        // VOOJAH tak mengirim tm420 (retail tak relevan bagi brand yang ditagih modal).
         $lihatDiferd = $request->user()->bolehLihatHargaDiferd();
+        $lihatTm = $request->user()->bolehLihatHargaTm420();
 
         if ($request->boolean('harga_khusus')) {
             foreach ($cols as $c) {
-                if (! $lihatDiferd && str_contains($c, 'diferd')) {
+                $kolomDiferd = str_contains($c, 'diferd');
+                if (($kolomDiferd && ! $lihatDiferd) || (! $kolomDiferd && ! $lihatTm)) {
                     $core[$c] = $existing?->$c;   // biarkan apa adanya
 
                     continue;
@@ -242,8 +245,8 @@ class ProductController extends Controller
 
     private function saveSpec(Request $request, Product $product): void
     {
-        $strings = ['patrun', 'ukuran_rib', 'warna_bahan', 'jenis_bahan', 'supp_bahan',
-            'warna_benang', 'cat_sablon', 'finishing', 'desain_depan', 'desain_belakang', 'desain_lengan', 'note'];
+        $strings = ['patrun', 'ukuran_rib', 'ukuran_rib_lengan', 'warna_bahan', 'jenis_bahan', 'supp_bahan',
+            'cat_sablon', 'finishing', 'desain_depan', 'desain_belakang', 'desain_lengan', 'note'];
         $bools = ['label_leher', 'label_bawah', 'slip_label', 'aksesoris', 'care_label', 'hangtag', 'plastik'];
 
         $spec = [];

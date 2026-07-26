@@ -31,7 +31,11 @@ class MarketplaceImportService
 
     public function import(UploadedFile $file): array
     {
-        [$headers, $rows] = $this->readSheet($file);
+        try {
+            [$headers, $rows] = $this->readSheet($file);
+        } catch (\Throwable $e) {
+            return ['error' => $this->pesanGagalBaca($e)];
+        }
         $marketplace = $this->detectMarketplace($headers);
 
         if (! $marketplace) {
@@ -179,8 +183,16 @@ class MarketplaceImportService
      */
     public function importSettlement(UploadedFile $file, ?int $brandId = null): array
     {
-        $spreadsheet = IOFactory::load($file->getRealPath());
-        $data = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+        try {
+            $spreadsheet = IOFactory::load($file->getRealPath());
+            // JANGAN hitung rumus (argumen ke-2 = false). File income Shopee menaruh baris ringkasan
+            // berisi `==SUM(INDIRECT(...))` — dobel '=' dan tak valid, sehingga PhpSpreadsheet
+            // melempar "Unexpected operator '='" dan SELURUH impor gagal. Importer hanya butuh nilai
+            // mentah (nomor pesanan & tanggal cair), jadi rumus memang tak perlu dihitung.
+            $data = $spreadsheet->getActiveSheet()->toArray(null, false, true, false);
+        } catch (\Throwable $e) {
+            return ['error' => $this->pesanGagalBaca($e)];
+        }
 
         // Cari baris header (Shopee income diawali metadata)
         $headers = null;
@@ -271,10 +283,28 @@ class MarketplaceImportService
 
     // ----- parsing helpers -----
 
+    /**
+     * Pesan gagal-baca yang bisa ditindaklanjuti user, plus catatan teknis ke log.
+     * Tanpa ini, file rusak jadi layar 500 kosong di produksi (APP_DEBUG=false).
+     */
+    private function pesanGagalBaca(\Throwable $e): string
+    {
+        \Illuminate\Support\Facades\Log::error('Gagal membaca file impor marketplace', [
+            'exception' => get_class($e),
+            'pesan' => $e->getMessage(),
+        ]);
+
+        return 'File tidak bisa dibaca. Pastikan yang diunggah adalah file export asli dari '
+            .'marketplace (.xlsx/.csv) dan tidak rusak/terproteksi. Bila file dibuka & disimpan '
+            .'ulang lewat Excel, coba unggah versi aslinya.';
+    }
+
     private function readSheet(UploadedFile $file): array
     {
         $spreadsheet = IOFactory::load($file->getRealPath());
-        $data = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+        // Rumus tidak dihitung — lihat alasannya di importSettlement(). Berlaku sama untuk file
+        // pesanan: cukup nilai mentah, dan rumus cacat dari marketplace tak boleh menggagalkan impor.
+        $data = $spreadsheet->getActiveSheet()->toArray(null, false, true, false);
         $headers = array_map(fn ($h) => trim((string) $h), $data[0] ?? []);
         $rows = array_slice($data, 1);
 

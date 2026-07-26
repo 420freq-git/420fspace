@@ -57,8 +57,12 @@
                                 <th class="px-5 py-3 font-semibold">Artikel</th>
                                 <th class="px-5 py-3 font-semibold">Brand</th>
                                 <th class="px-5 py-3 font-semibold">Kategori</th>
-                                @php $lihatDiferd = auth()->user()->bolehLihatHargaDiferd(); @endphp
-                                <th class="px-5 py-3 font-semibold text-right">{{ $lihatDiferd ? 'Harga S–XL (Diferd → TM420)' : 'Harga S–XL' }}</th>
+                                @php
+                                    $lihatDiferd = auth()->user()->bolehLihatHargaDiferd();
+                                    $lihatTm = auth()->user()->bolehLihatHargaTm420();
+                                @endphp
+                                <th class="px-5 py-3 font-semibold text-right">{{ $lihatDiferd && $lihatTm ? 'Harga S–XL (Diferd → TM420)' : 'Harga S–XL' }}</th>
+                                <th class="px-5 py-3 font-semibold text-center">Kelengkapan</th>
                                 <th class="px-5 py-3 font-semibold text-center">Status</th>
                                 <th class="px-5 py-3 font-semibold text-right">Aksi</th>
                             </tr>
@@ -79,12 +83,27 @@
                                         <span class="tnum text-sand-800">
                                             @if ($lihatDiferd)
                                                 {{ $d !== null ? 'Rp '.number_format($d, 0, ',', '.') : '—' }}
-                                                <span class="text-sand-400">→</span>
+                                                @if ($lihatTm)<span class="text-sand-400">→</span>@endif
                                             @endif
-                                            {{ $t !== null ? 'Rp '.number_format($t, 0, ',', '.') : '—' }}
+                                            @if ($lihatTm){{ $t !== null ? 'Rp '.number_format($t, 0, ',', '.') : '—' }}@endif
                                         </span>
                                         @if ($product->hasOverride())
                                             <span class="ms-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">khusus</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-3.5 text-center">
+                                        @php $kurang = $product->kelengkapanKurang(); @endphp
+                                        @if (empty($kurang))
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                                                Lengkap
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800" title="Belum terisi: {{ implode(', ', $kurang) }}">
+                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                                                Belum lengkap
+                                            </span>
+                                            <div class="mt-0.5 text-[11px] text-sand-400">{{ implode(' · ', $kurang) }}</div>
                                         @endif
                                     </td>
                                     <td class="px-5 py-3.5 text-center">

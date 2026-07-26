@@ -285,7 +285,7 @@
                                                     <div>
                                                         <p class="text-xs font-semibold uppercase tracking-wider text-sand-400 mb-2">Spesifikasi</p>
                                                         <dl class="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-                                                            @foreach (['Bahan' => $po->jenis_bahan, 'Warna bahan' => $po->warna_bahan, 'Patrun' => $po->patrun, 'Rib' => $po->ukuran_rib, 'Cat sablon' => $po->cat_sablon, 'Finishing' => $po->finishing, 'Warna benang' => $po->warna_benang, 'Supplier bahan' => $po->supp_bahan] as $lbl => $val)
+                                                            @foreach (['Bahan' => $po->jenis_bahan, 'Warna bahan' => $po->warna_bahan, 'Patrun' => $po->patrun, 'RIB leher' => $po->ukuran_rib, 'RIB lengan' => $po->ukuran_rib_lengan, 'Cat sablon' => $po->cat_sablon, 'Finishing' => $po->finishing, 'Supplier bahan' => $po->supp_bahan] as $lbl => $val)
                                                                 @if ($val)
                                                                     <div class="flex justify-between gap-3 border-b border-sand-100 pb-1">
                                                                         <dt class="text-sand-500">{{ $lbl }}</dt>
@@ -326,15 +326,19 @@
                                     <td class="px-5 py-3.5 text-center tnum text-sand-700">{{ number_format($po->total_qty, 0, ',', '.') }}</td>
                                     <td class="px-5 py-3.5">
                                         @if ($canStatus)
-                                            <form method="POST" action="{{ route('purchase-orders.status', [$batch, $po]) }}">
-                                                @csrf @method('PATCH')
-                                                <select name="tahap" onchange="try{sessionStorage.setItem('poScroll',window.scrollY);}catch(e){} this.form.submit()"
-                                                        class="rounded-lg border-sand-300 text-xs py-1.5 pr-8 focus:border-brand-600 focus:ring-brand-600">
+                                            {{-- Disimpan tanpa reload (resources/js/app.js). Sel ini hanya berisi
+                                                 dropdown, jadi tak ada yang perlu digambar ulang selain penanda simpan. --}}
+                                            <div class="flex items-center">
+                                                <select data-tahap-select
+                                                        data-url="{{ route('purchase-orders.status', [$batch, $po]) }}"
+                                                        data-batch="{{ $batch->id }}"
+                                                        data-po="{{ $po->id }}"
+                                                        class="rounded-lg border-sand-300 text-xs py-1.5 pr-8 focus:border-brand-600 focus:ring-brand-600 disabled:opacity-50">
                                                     @foreach (\App\Enums\TahapProduksi::cases() as $st)
                                                         <option value="{{ $st->value }}" @selected($po->tahap === $st)>{{ $st->step() }}. {{ $st->label() }}</option>
                                                     @endforeach
                                                 </select>
-                                            </form>
+                                            </div>
                                         @else
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $po->tahap->badgeClasses() }}">{{ $po->tahap->label() }}</span>
                                         @endif
@@ -381,16 +385,6 @@
         </div>
     </div>
 
-    {{-- Pertahankan posisi scroll setelah update tahap (form me-reload halaman). --}}
-    <script>
-        (function () {
-            if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-            var y = sessionStorage.getItem('poScroll');
-            if (y === null) return;
-            sessionStorage.removeItem('poScroll');
-            var restore = function () { window.scrollTo(0, parseInt(y, 10)); };
-            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', restore);
-            else restore();
-        })();
-    </script>
+    {{-- Ganti tahap ditangani tanpa reload di resources/js/app.js — tak perlu lagi menambal
+         posisi scroll lewat sessionStorage. --}}
 </x-app-layout>

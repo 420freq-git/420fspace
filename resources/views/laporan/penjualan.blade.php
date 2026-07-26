@@ -63,7 +63,7 @@
             </div>
             @if ($showTm)
                 <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5">
-                    <p class="text-sm text-sand-500">Nilai jual (TM420)</p>
+                    <p class="text-sm text-sand-500">Nilai jual ({{ $labelJual }})</p>
                     <p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ $fmt($totalTm420) }}</p>
                 </div>
             @endif
@@ -96,7 +96,7 @@
                                 <th class="px-5 py-3 font-semibold">SKU</th>
                                 <th class="px-5 py-3 font-semibold">Produk</th>
                                 <th class="px-5 py-3 font-semibold text-center">Qty</th>
-                                @if ($showTm)<th class="px-5 py-3 font-semibold text-right">Nilai TM420</th>@endif
+                                @if ($showTm)<th class="px-5 py-3 font-semibold text-right">Nilai {{ $labelJual }}</th>@endif
                                 @if ($showDiferd)<th class="px-5 py-3 font-semibold text-right">Nilai Diferd</th>@endif
                                 @if ($showFee)<th class="px-5 py-3 font-semibold text-right">Fee 420F</th>@endif
                             </tr>

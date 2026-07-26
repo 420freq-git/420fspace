@@ -204,6 +204,23 @@ class PengirimanController extends Controller
 
         $pengiriman->load('items');
 
+        // Diterima TIDAK BOLEH melebihi yang dikirim. Tanpa penjaga ini, angka penerimaan
+        // mengarang stok yang tak pernah diproduksi (stok jual = diterima − terjual), dan tiap
+        // penjualannya menciptakan hak Diferd yang harus dibayar 420F. Jangan andalkan atribut
+        // `max` di form — sisi server adalah penentu.
+        $lebih = $pengiriman->items->filter(
+            fn ($item) => array_key_exists($item->id, $data['diterima'])
+                && (int) $data['diterima'][$item->id] > (int) $item->qty
+        );
+        if ($lebih->isNotEmpty()) {
+            $contoh = $lebih->first();
+
+            return back()->with('error',
+                'Jumlah diterima tidak boleh melebihi yang dikirim (mis. '
+                .($contoh->product->nama_artikel ?? 'artikel').' '.$contoh->ukuran->value
+                .': dikirim '.$contoh->qty.' pcs). Perbaiki dulu angkanya.');
+        }
+
         // Kurang dari yang dikirim → alasannya wajib, sama seperti di sisi vendor.
         $kurang = $pengiriman->items->sum(function ($item) use ($data) {
             $diterima = array_key_exists($item->id, $data['diterima'])

@@ -68,10 +68,35 @@
             @endforeach
             @if ($invoice->isBuyout())
                 <tr>
-                    <td>Buy-out sisa stok<div class="muted" style="font-size:8px;">{{ $invoice->catatan }}</div></td>
+                    <td>
+                        Buy-out sisa stok
+                        @if ($invoice->catatan)
+                            <div class="muted" style="font-size:8px;">{{ $invoice->catatan }}</div>
+                        @endif
+                        @if (! empty($rincianBuyout['baris']))
+                            @foreach ($rincianBuyout['baris'] as $b)
+                                <div class="muted" style="font-size:8px;">
+                                    {{ $b['product']->nama_artikel ?? 'Artikel dihapus' }} ·
+                                    @foreach ($b['sizes'] as $s){{ $s['ukuran'] }} × {{ $s['qty'] }}@if (! $loop->last), @endif @endforeach
+                                    ({{ number_format($b['pcs'], 0, ',', '.') }} pcs · {{ $fmt($b['nilai']) }})
+                                </div>
+                            @endforeach
+                        @endif
+                    </td>
                     <td>{{ $invoice->tanggal_terbit->translatedFormat('d M Y') }}</td>
                     <td>Buy-out</td>
                     <td class="c">{{ $invoice->pcs_manual }}</td>
+                    <td class="r">{{ $fmt($invoice->jumlah_manual) }}</td>
+                </tr>
+            @elseif ($invoice->isCash())
+                <tr>
+                    <td>
+                        {{ $invoice->labelJenis() }}
+                        <div class="muted" style="font-size:8px;">Pembayaran cash (beli putus){{ $invoice->batch ? ' · batch '.$invoice->batch->nomor_batch : '' }}</div>
+                    </td>
+                    <td>{{ $invoice->tanggal_terbit->translatedFormat('d M Y') }}</td>
+                    <td>Cash</td>
+                    <td class="c">{{ $invoice->pcs_manual ?: '-' }}</td>
                     <td class="r">{{ $fmt($invoice->jumlah_manual) }}</td>
                 </tr>
             @endif

@@ -145,6 +145,7 @@ class ReportController extends Controller
             'rows' => $rows,
             'labels' => $months->map(fn ($m) => $m->translatedFormat('M y'))->all(),
             'showTm' => in_array($user->role, [Role::Admin, Role::Tm420, Role::Voojah], true),
+            'labelJual' => $user->brand?->nama ?? 'TM420',
             'showDiferd' => in_array($user->role, [Role::Admin, Role::Diferd], true),
             'totals' => [
                 'qty' => (int) $rows->sum('qty'),
@@ -253,6 +254,7 @@ class ReportController extends Controller
         return [
             'rows' => $rows,
             'showTm' => in_array($user->role, [Role::Admin, Role::Tm420, Role::Voojah], true),
+            'labelJual' => $user->brand?->nama ?? 'TM420',
             'showDiferd' => in_array($user->role, [Role::Admin, Role::Diferd], true),
             'showFee' => $user->isAdmin(),
             'totals' => [
@@ -312,6 +314,7 @@ class ReportController extends Controller
             'byMarketplace' => $byMarketplace,
             // Visibilitas nilai per role: TM tak pernah lihat harga Diferd/fee.
             'showTm' => in_array($user->role, [Role::Admin, Role::Tm420, Role::Voojah], true),
+            'labelJual' => $user->brand?->nama ?? 'TM420',
             'showDiferd' => in_array($user->role, [Role::Admin, Role::Diferd], true),
             'showFee' => $user->isAdmin(),
             'brands' => $ownBrand ? collect() : Brand::orderBy('nama')->get(),
@@ -366,6 +369,7 @@ class ReportController extends Controller
             'produksiQty' => (int) $produksi->sum('qty'),
             'produksiNilai' => (int) $produksi->sum('nilai'),
             'showTm' => $showTm,
+            'labelJual' => $user->brand?->nama ?? 'TM420',
             'showDiferd' => $showDiferd,
         ];
     }

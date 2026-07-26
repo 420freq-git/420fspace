@@ -7,8 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'product_id', 'patrun', 'ukuran_rib', 'warna_bahan', 'jenis_bahan', 'supp_bahan',
-    'warna_benang', 'cat_sablon', 'finishing', 'desain_depan', 'desain_belakang', 'desain_lengan',
+    'product_id', 'patrun', 'ukuran_rib', 'ukuran_rib_lengan', 'warna_bahan', 'jenis_bahan', 'supp_bahan',
+    'cat_sablon', 'finishing', 'desain_depan', 'desain_belakang', 'desain_lengan',
     'label_leher', 'label_bawah', 'slip_label', 'aksesoris', 'care_label', 'hangtag', 'plastik', 'note',
 ])]
 class ProductSpec extends Model

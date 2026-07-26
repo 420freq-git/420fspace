@@ -22,10 +22,10 @@ class InvoiceController extends Controller
             ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))
             ->latest('tanggal_terbit')->latest('id')->get();
 
-        // Pesanan cair yang belum ditagihkan (untuk tombol buat invoice).
+        // Pesanan yang sudah jadi kewajiban bayar & belum ditagihkan (untuk tombol buat invoice).
+        // Semua brand, termasuk VOOJAH (ditagih di harga modal — lihat generate()).
         $belumDitagih = Order::whereNull('invoice_id')
-            ->where('status', 'lunas')
-            ->whereHas('brand', fn ($q) => $q->where('tipe', 'eksternal'))
+            ->bisaDitagih()
             ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))
             ->count();
 
@@ -42,9 +42,11 @@ class InvoiceController extends Controller
     /** Buat invoice otomatis: kumpulkan pesanan cair belum-ditagih per brand eksternal. */
     public function generate()
     {
+        // Semua brand ditagih lewat invoice — termasuk VOOJAH (milik sendiri). VOOJAH tetap
+        // ditagih di harga modal karena snapshot sales.harga_tm420 = hargaTagihan (diferd untuk
+        // brand milik-sendiri). Nomor invoice memakai kode brand (VOOJAH → INV.VJ...).
         $groups = Order::whereNull('invoice_id')
-            ->where('status', 'lunas')
-            ->whereHas('brand', fn ($q) => $q->where('tipe', 'eksternal'))
+            ->bisaDitagih()
             ->with('items')
             ->get()
             ->groupBy('brand_id');
@@ -76,7 +78,25 @@ class InvoiceController extends Controller
         return view('invoices.show', [
             'invoice' => $invoice->load(['brand', 'orders.items.product']),
             'isAdmin' => $request->user()->isAdmin(),
+            'rincianBuyout' => $this->rincianBuyout($invoice),
         ]);
+    }
+
+    /**
+     * Rincian artikel untuk invoice buy-out (null bila bukan buy-out / batch-nya tak terlacak).
+     * Tanpa ini invoice buy-out hanya menampilkan satu baris gelondongan tanpa isi.
+     */
+    private function rincianBuyout(Invoice $invoice): ?array
+    {
+        if (! $invoice->isBuyout() || ! $invoice->batch_id) {
+            return null;
+        }
+        $batch = \App\Models\Batch::find($invoice->batch_id);
+        if (! $batch) {
+            return null;
+        }
+
+        return app(\App\Services\SettlementService::class)->rincianBuyout($batch);
     }
 
     public function pdf(Request $request, Invoice $invoice)
@@ -85,6 +105,7 @@ class InvoiceController extends Controller
 
         $pdf = Pdf::loadView('invoices.pdf', [
             'invoice' => $invoice->load(['brand', 'orders.items.product']),
+            'rincianBuyout' => $this->rincianBuyout($invoice),
         ])->setPaper('a4', 'portrait');
 
         return $pdf->stream('INVOICE-'.$invoice->nomor.'.pdf');
@@ -108,6 +129,11 @@ class InvoiceController extends Controller
             'jumlah' => $total,
             'keterangan' => 'Pembayaran invoice '.$invoice->nomor,
         ]);
+
+        // Invoice cash lunas → cek apakah batch cash-nya sudah lunas penuh (stok keluar sistem).
+        if ($invoice->isCash() && $invoice->batch_id) {
+            app(\App\Services\SettlementService::class)->reconcileCashLunas($invoice->batch->load('purchaseOrders'));
+        }
 
         return back()->with('success', 'Invoice '.$invoice->nomor.' ditandai lunas & penerimaan dicatat di cashflow.');
     }

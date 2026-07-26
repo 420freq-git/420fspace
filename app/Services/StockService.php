@@ -91,6 +91,65 @@ class StockService
     }
 
     /**
+     * Qty se-batch yang masih menunggu surat jalan (produced − shipped) pada PO yang BELUM ditutup.
+     * PO bertahap `terkirim` dilewati: sisa tak-terkirimnya adalah reject final, bukan antrean kirim.
+     *
+     * Dipakai monitoring produksi untuk menentukan batch "selesai" (semua PO siap_kirim DAN
+     * tak ada lagi yang menunggu dikirim). Ditaruh di sini supaya MonitoringProduksiController dan
+     * PurchaseOrderController (respons AJAX ganti tahap) memakai definisi yang sama persis.
+     */
+    public function menungguKirimBatch(Batch $batch): int
+    {
+        $batch->loadMissing('purchaseOrders.sizeItems');
+
+        $kombinasi = [];
+        foreach ($batch->purchaseOrders as $po) {
+            if ($po->tahap === TahapProduksi::Terkirim) {
+                continue;
+            }
+            foreach ($po->sizeItems as $si) {
+                $kombinasi[$po->product_id.'|'.$si->ukuran->value] = [$po->product_id, $si->ukuran->value];
+            }
+        }
+
+        $total = 0;
+        foreach ($kombinasi as [$pid, $uk]) {
+            $total += max(0, $this->producedInBatch($batch->id, (int) $pid, $uk)
+                - $this->shippedInBatch($batch->id, (int) $pid, $uk));
+        }
+
+        return $total;
+    }
+
+    /**
+     * Pergerakan stok se-batch (basis penerimaan): diterima, terjual, dan sisa (belum terjual).
+     * diterima = terjual + sisa (sisa = availableInBatch). Dipakai Radar & bisa dipakai halaman lain
+     * yang ingin menampilkan "terjual X dari Y diterima" per batch — satu definisi, konsisten.
+     *
+     * @return array{diterima:int, terjual:int, sisa:int}
+     */
+    public function pergerakanBatch(Batch $batch): array
+    {
+        $batch->loadMissing('purchaseOrders.sizeItems');
+
+        $combos = [];
+        foreach ($batch->purchaseOrders as $po) {
+            foreach ($po->sizeItems as $si) {
+                $combos[$po->product_id.'|'.$si->ukuran->value] = [$po->product_id, $si->ukuran->value];
+            }
+        }
+
+        $diterima = 0;
+        $terjual = 0;
+        foreach ($combos as [$pid, $uk]) {
+            $diterima += $this->receivedInBatch($batch->id, (int) $pid, $uk);
+            $terjual += $this->soldInBatch($batch->id, (int) $pid, $uk);
+        }
+
+        return ['diterima' => $diterima, 'terjual' => $terjual, 'sisa' => max(0, $diterima - $terjual)];
+    }
+
+    /**
      * Reject produksi = qty PO yang tidak pernah dikirim, dihitung setelah PO ditutup.
      * Dalam alur produksi tidak ada "sisa menganggur" — barang yang tidak ikut dikirim berarti
      * gagal QC. Kerugiannya ditanggung vendor, sama seperti kurang/cacat saat penerimaan.
@@ -223,6 +282,22 @@ class StockService
     }
 
     /**
+     * Kurang/cacat saat penerimaan (dikirim − diterima) pada batch BERJALAN, per produk+ukuran.
+     * Sama pola aktif/arsip seperti reject produksi — ini juga kerugian vendor dan harus tampil di
+     * monitor stok, bukan hanya di Laporan Kerugian. Kalau tidak, penerimaan-kurang seolah hilang.
+     */
+    public function shortfallActiveTotal(int $productId, string $ukuran): int
+    {
+        return $this->perBatch($productId, fn ($batchId) => $this->shortfallInBatch($batchId, $productId, $ukuran), true);
+    }
+
+    /** Kurang/cacat penerimaan dari batch yang sudah selesai (diarsipkan). */
+    public function shortfallSelesaiTotal(int $productId, string $ukuran): int
+    {
+        return $this->perBatch($productId, fn ($batchId) => $this->shortfallInBatch($batchId, $productId, $ukuran), false, true);
+    }
+
+    /**
      * Jumlahkan sebuah perhitungan per batch yang punya PO untuk produk ini (batch unik).
      * $hanyaAktif / $hanyaSelesai menyaring berdasarkan status batch.
      */
@@ -242,11 +317,19 @@ class StockService
      * Terjual tapi pesanannya belum cair — barang sudah keluar ke pembeli, uangnya belum masuk.
      * Bukan stok yang bisa dijual lagi, tapi perlu dipantau karena masih menggantung.
      */
+    /**
+     * "Terjual belum cair" = barang sudah terjual dan sedang MENUNGGU pencairan marketplace —
+     * yaitu pesanan berstatus `dipesan`/`dikirim` (sama dengan daftar "perlu dicek" di Monitoring).
+     *
+     * Dulu memakai `status != 'lunas'`, sehingga retur berkondisi `rusak` (order jadi `batal`)
+     * ikut terhitung. Itu keliru: retur rusak adalah KERUGIAN brand yang ditagih lewat invoice,
+     * bukan pesanan yang sedang menunggu dana cair — dan karena order-nya `batal` ia tak akan
+     * pernah jadi `lunas`, jadi angkanya menggantung selamanya (kasus Smiley).
+     */
     public function soldUnsettledTotal(int $productId, string $ukuran): int
     {
         return (int) Sale::where('product_id', $productId)->where('ukuran', $ukuran)
-            ->consuming()
-            ->whereHas('order', fn ($q) => $q->where('status', '!=', 'lunas'))
+            ->whereHas('order', fn ($q) => $q->whereIn('status', ['dipesan', 'dikirim']))
             ->sum('qty');
     }
 

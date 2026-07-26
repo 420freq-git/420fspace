@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['batch_id', 'brand_id', 'metode', 'pcs', 'nilai_diferd', 'nilai_tm420', 'tanggal', 'keterangan'])]
+#[Fillable(['batch_id', 'brand_id', 'metode', 'pcs', 'nilai_diferd', 'nilai_tm420', 'tanggal', 'keterangan',
+    'bukti_diferd', 'tgl_diferd', 'bukti_tm', 'tgl_tm'])]
 class CashGanti extends Model
 {
     use Auditable;
@@ -26,6 +27,8 @@ class CashGanti extends Model
             'pcs' => 'integer',
             'nilai_diferd' => 'integer',
             'nilai_tm420' => 'integer',
+            'tgl_diferd' => 'datetime',
+            'tgl_tm' => 'datetime',
         ];
     }
 
@@ -37,6 +40,24 @@ class CashGanti extends Model
     public function isRefund(): bool
     {
         return $this->metode === 'refund';
+    }
+
+    /** Langkah 1 refund: Diferd sudah kembalikan uang ke 420F (ada bukti). */
+    public function diferdSudahKembalikan(): bool
+    {
+        return $this->tgl_diferd !== null;
+    }
+
+    /** Langkah 2 refund: 420F sudah teruskan refund ke TM (ada bukti). */
+    public function sudahDiteruskanTm(): bool
+    {
+        return $this->tgl_tm !== null;
+    }
+
+    /** Refund tuntas bila kedua langkah selesai (barang: langsung tuntas). */
+    public function refundTuntas(): bool
+    {
+        return $this->isBarang() || ($this->diferdSudahKembalikan() && $this->sudahDiteruskanTm());
     }
 
     public function batch(): BelongsTo

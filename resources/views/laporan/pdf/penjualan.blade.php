@@ -37,7 +37,7 @@
                 <div class="val">{{ $jumlahArtikel }}</div>
             </td>
             @if ($showTm)
-                <td style="width:{{ $cardW }}%"><div class="lbl">Nilai jual (TM420)</div><div class="val">{{ $fmt($totalTm420) }}</div></td>
+                <td style="width:{{ $cardW }}%"><div class="lbl">Nilai jual ({{ $labelJual }})</div><div class="val">{{ $fmt($totalTm420) }}</div></td>
             @endif
             @if ($showDiferd)
                 <td style="width:{{ $cardW }}%"><div class="lbl">Nilai Diferd</div><div class="val">{{ $fmt($totalDiferd) }}</div></td>
@@ -55,7 +55,7 @@
                 <th style="width:14%">SKU</th>
                 <th>Produk</th>
                 <th class="c" style="width:9%">Qty</th>
-                @if ($showTm)<th class="r" style="width:16%">Nilai TM420</th>@endif
+                @if ($showTm)<th class="r" style="width:16%">Nilai {{ $labelJual }}</th>@endif
                 @if ($showDiferd)<th class="r" style="width:16%">Nilai Diferd</th>@endif
                 @if ($showFee)<th class="r" style="width:15%">Fee 420F</th>@endif
             </tr>

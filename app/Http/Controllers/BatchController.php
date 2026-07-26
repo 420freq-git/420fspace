@@ -24,8 +24,17 @@ class BatchController extends Controller
 
         $query = Batch::with(['brand', 'purchaseOrders.sizeItems'])->latest('tanggal_order');
         $this->scope($query, $request);
+        $batches = $query->get();
 
-        return view('batches.index', ['batches' => $query->get()]);
+        // Progres produksi per batch (diterima/terkirim dari diproduksi) — data produksi, aman
+        // dilihat semua peran termasuk TM (bukan angka uang Diferd).
+        $stock = app(\App\Services\StockService::class);
+        $progres = $batches->mapWithKeys(fn ($b) => [$b->id => [
+            'diproduksi' => (int) $b->purchaseOrders->sum(fn ($po) => $po->sizeItems->sum('qty')),
+            'terkirim' => $stock->pergerakanBatch($b)['diterima'],
+        ]]);
+
+        return view('batches.index', ['batches' => $batches, 'progres' => $progres]);
     }
 
     public function create()
@@ -54,6 +63,8 @@ class BatchController extends Controller
             'deadline_produksi' => $data['deadline_produksi'] ?? null,
             'jenis_order' => $data['jenis_order'],
             'type_payment' => $data['type_payment'],
+            // DP hanya berlaku untuk cash; mode lain diabaikan.
+            'dp_persen' => $data['type_payment'] === TypePayment::Cash->value ? ($data['dp_persen'] ?? null) : null,
             'status' => $perluApproval ? BatchStatus::Menunggu : BatchStatus::Aktif,
             'diajukan_oleh' => $user->id,
             'disetujui_oleh' => $perluApproval ? null : $user->id,
@@ -82,11 +93,12 @@ class BatchController extends Controller
             'catatan_approval' => null,
         ]);
 
-        // Batch cash: bayar penuh di muka begitu disetujui (TM→420F→Diferd, 420F ambil margin).
-        $cash = app(\App\Services\SettlementService::class)->prosesCashBatch($batch);
+        // Batch cash: terbitkan invoice TAGIHAN ke TM (DP% bila pakai DP, atau penuh). Uang masuk
+        // hanya saat invoice ditandai lunas + bukti; 420F bayar Diferd lewat aksi terpisah.
+        $inv = app(\App\Services\SettlementService::class)->prosesCashBatch($batch);
 
-        return back()->with('success', $cash
-            ? 'Batch cash disetujui & dibayar di muka (Diferd Rp '.number_format($cash['diferd'], 0, ',', '.').').'
+        return back()->with('success', $inv
+            ? 'Batch cash disetujui. Invoice tagihan '.$inv->nomor.' Rp '.number_format($inv->total, 0, ',', '.').' terbit untuk TM (lihat menu Invoice / Settlement).'
             : 'Batch disetujui & diteruskan ke vendor.');
     }
 
@@ -321,6 +333,8 @@ class BatchController extends Controller
             'deadline_produksi' => ['nullable', 'date'],
             'jenis_order' => ['required', new Enum(JenisOrder::class)],
             'type_payment' => ['required', new Enum(TypePayment::class)],
+            // DP hanya untuk cash; 1–99% (100 = cash penuh biasa, kosong = tanpa DP).
+            'dp_persen' => ['nullable', 'integer', 'min:1', 'max:99'],
             'status' => ['nullable', new Enum(\App\Enums\BatchStatus::class)],
         ]);
     }

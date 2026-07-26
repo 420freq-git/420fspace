@@ -66,6 +66,51 @@ class Product extends Model
         return $this->files->where('tipe', $type->value);
     }
 
+    /** Apakah spesifikasi produksi sudah diisi (minimal satu field inti terisi). */
+    public function specTerisi(): bool
+    {
+        $s = $this->spec;
+        if (! $s) {
+            return false;
+        }
+        foreach (['patrun', 'ukuran_rib', 'ukuran_rib_lengan', 'warna_bahan', 'jenis_bahan',
+            'supp_bahan', 'cat_sablon', 'finishing', 'desain_depan', 'desain_belakang', 'desain_lengan'] as $f) {
+            if (filled($s->$f)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Bagian data produk yang BELUM terisi — untuk monitoring kelengkapan.
+     * Mengembalikan daftar label yang kurang (kosong = sudah lengkap).
+     */
+    public function kelengkapanKurang(): array
+    {
+        $kurang = [];
+        if (! $this->specTerisi()) {
+            $kurang[] = 'Spesifikasi';
+        }
+        if ($this->filesOfType(ProductFileType::Mockup)->isEmpty()) {
+            $kurang[] = 'Mockup';
+        }
+        if ($this->filesOfType(ProductFileType::Desain)->isEmpty()) {
+            $kurang[] = 'Detail desain';
+        }
+        if ($this->filesOfType(ProductFileType::Mentahan)->isEmpty()) {
+            $kurang[] = 'File mentahan';
+        }
+
+        return $kurang;
+    }
+
+    public function isLengkap(): bool
+    {
+        return $this->kelengkapanKurang() === [];
+    }
+
     public function hasOverride(): bool
     {
         return $this->harga_diferd_sxl_override !== null

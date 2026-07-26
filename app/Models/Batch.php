@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'brand_id', 'nomor_batch', 'vendor', 'tanggal_order', 'deadline', 'deadline_produksi',
     'jenis_order', 'type_payment', 'deposit_awal', 'deposit_rekonsiliasi', 'tgl_rekonsiliasi', 'status',
     'diajukan_oleh', 'disetujui_oleh', 'tgl_approval', 'catatan_approval', 'dibuyout', 'tgl_buyout',
-    'cash_dibayar', 'tgl_cash',
+    'cash_dibayar', 'tgl_cash', 'dp_persen', 'dp_dibayar', 'tgl_dp',
 ])]
 class Batch extends Model
 {
@@ -43,6 +43,9 @@ class Batch extends Model
             'tgl_buyout' => 'datetime',
             'cash_dibayar' => 'boolean',
             'tgl_cash' => 'datetime',
+            'dp_persen' => 'integer',
+            'dp_dibayar' => 'boolean',
+            'tgl_dp' => 'datetime',
         ];
     }
 
@@ -54,6 +57,12 @@ class Batch extends Model
     public function isCash(): bool
     {
         return $this->type_payment === \App\Enums\TypePayment::Cash;
+    }
+
+    /** Batch cash yang memakai skema down payment (DP di muka, sisa saat siap kirim). */
+    public function isCashDP(): bool
+    {
+        return $this->isCash() && $this->dp_persen !== null && $this->dp_persen > 0 && $this->dp_persen < 100;
     }
 
     public function pengaju(): BelongsTo

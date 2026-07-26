@@ -43,6 +43,7 @@ class SettlementController extends Controller
         foreach ($rows as &$r) {
             $r['sold'] = $this->stock->soldInBatch($batch->id, $r['product']->id, $r['ukuran']);
             $r['short'] = $this->stock->shortfallInBatch($batch->id, $r['product']->id, $r['ukuran']);
+            $r['diterima'] = $this->stock->receivedInBatch($batch->id, $r['product']->id, $r['ukuran']);
             $r['sisa'] = $r['produced'] - $r['sold'] - $r['short'];
         }
         unset($r);
@@ -50,19 +51,23 @@ class SettlementController extends Controller
         $col = collect($rows);
 
         return [
+            'is_cash' => $batch->isCash(),   // cash = beli putus; pakai "terkirim", bukan "terjual"
             'byKategori' => $col->groupBy('kategori')->map(fn ($g) => [
                 'diproduksi' => (int) $g->sum('produced'),
                 'terjual' => (int) $g->sum('sold'),
+                'diterima' => (int) $g->sum('diterima'),
                 'sisa' => (int) $g->sum('sisa'),
                 'artikels' => $g->groupBy(fn ($r) => $r['product']->id)->map(fn ($a) => [
                     'nama' => $a->first()['product']->nama_artikel,
                     'diproduksi' => (int) $a->sum('produced'),
                     'terjual' => (int) $a->sum('sold'),
+                    'diterima' => (int) $a->sum('diterima'),
                     'sisa' => (int) $a->sum('sisa'),
                 ])->values(),
             ])->sortKeys(),
             'diproduksi' => (int) $col->sum('produced'),
             'terjual' => (int) $col->sum('sold'),
+            'diterima' => (int) $col->sum('diterima'),
             'sisa' => (int) $col->sum('sisa'),
         ];
     }
@@ -72,8 +77,14 @@ class SettlementController extends Controller
         // Tandai batch tuntas jadi Lunas otomatis (420F/Diferd lihat semua batch).
         $this->settlement->reconcileLunas();
 
+        // Setiap batch bawa ringkasan uang + pergerakan stok (qty diproduksi/terjual/sisa) supaya
+        // Diferd bisa memantau pergerakan tiap batch sekilas dari daftar, tanpa buka satu-satu.
         $rows = Batch::with('brand')->latest('tanggal_order')->latest('id')->get()
-            ->map(fn ($b) => ['batch' => $b, 'sum' => $this->settlement->batchSummary($b)]);
+            ->map(fn ($b) => [
+                'batch' => $b,
+                'sum' => $this->settlement->batchSummary($b),
+                'stok' => $this->stokBatch($b),
+            ]);
 
         // Penarikan sudah dibekukan jadi baris ledger per batch, jadi ikut terhitung di 'terbayar'.
         // Sisanya (dari penjualan tanpa batch) tidak punya batch tujuan — ditambahkan terpisah.
@@ -101,20 +112,22 @@ class SettlementController extends Controller
         $agg = [];
         $stokTotal = ['diproduksi' => 0, 'terjual' => 0, 'sisa' => 0];
         foreach ($rows as $r) {
-            $s = $this->stokBatch($r['batch']);
-            foreach ($s['byKategori'] as $kat => $k) {
+            foreach ($r['stok']['byKategori'] as $kat => $k) {
                 $agg[$kat] ??= ['diproduksi' => 0, 'terjual' => 0, 'sisa' => 0];
                 foreach (['diproduksi', 'terjual', 'sisa'] as $f) {
                     $agg[$kat][$f] += $k[$f];
                 }
             }
             foreach (['diproduksi', 'terjual', 'sisa'] as $f) {
-                $stokTotal[$f] += $s[$f];
+                $stokTotal[$f] += $r['stok'][$f];
             }
         }
         $stokKategori = collect($agg)->sortKeys();
 
-        return view('settlement.index', compact('rows', 'totals', 'stokKategori', 'stokTotal'));
+        // Fee 420F = margin 420F; Diferd tidak boleh melihatnya (bukan urusan vendor).
+        $isAdmin = auth()->user()->isAdmin();
+
+        return view('settlement.index', compact('rows', 'totals', 'stokKategori', 'stokTotal', 'isAdmin'));
     }
 
     public function show(Batch $batch)
@@ -124,6 +137,9 @@ class SettlementController extends Controller
             'summary' => $this->settlement->batchSummary($batch),
             'stok' => $this->stokBatch($batch),
             'ledger' => VendorLedger::where('batch_id', $batch->id)->latest('tanggal')->latest('id')->get(),
+            // Refund reject yang perlu ditindaklanjuti 2 langkah ber-bukti.
+            'refundGanti' => \App\Models\CashGanti::where('batch_id', $batch->id)->where('metode', 'refund')
+                ->latest('id')->get(),
         ]);
     }
 
@@ -158,22 +174,64 @@ class SettlementController extends Controller
      * TM bayar 420F penuh (PO × tm420), 420F bayar Diferd penuh (PO × diferd), 420F ambil margin.
      * Setelah ini batch lunas — penjualannya tak menambah hak Diferd (lihat Sale::consignment()).
      */
+    /** Terbitkan invoice tagihan cash ke TM (cadangan bila batch dibuat langsung aktif tanpa approve). */
     public function bayarCash(Request $request, Batch $batch)
     {
         if (! $batch->isCash()) {
             return back()->with('error', 'Batch ini bukan tipe pembayaran cash.');
         }
-        if ($batch->cash_dibayar) {
-            return back()->with('error', 'Batch cash ini sudah dibayar di muka.');
+        $inv = $this->settlement->prosesCashBatch($batch);
+        if ($inv === null) {
+            return back()->with('error', 'Invoice cash sudah terbit atau batch belum punya PO.');
         }
 
-        $t = $this->settlement->prosesCashBatch($batch);
-        if ($t === null) {
-            return back()->with('error', 'Batch belum punya PO — tidak ada yang dibayar.');
+        return redirect()->route('invoices.show', $inv)->with('success',
+            'Invoice tagihan cash '.$inv->nomor.' Rp '.number_format($inv->total, 0, ',', '.').' terbit untuk TM.');
+    }
+
+    /** Terbitkan invoice SISA cash DP ke TM — dibuka saat semua PO siap kirim. */
+    public function lunasiSisaCash(Request $request, Batch $batch)
+    {
+        if (! $batch->isCashDP()) {
+            return back()->with('error', 'Batch ini bukan cash dengan DP.');
+        }
+        $pos = $batch->purchaseOrders()->get();
+        if ($pos->isEmpty() || ! $pos->every(fn ($p) => $p->tahap->isReady())) {
+            return back()->with('error', 'Sisa baru bisa ditagih setelah semua PO siap kirim.');
         }
 
-        return back()->with('success', 'Batch cash dibayar di muka: Diferd Rp '.number_format($t['diferd'], 0, ',', '.')
-            .', TM ke 420F Rp '.number_format($t['tm420'], 0, ',', '.').', margin 420F Rp '.number_format($t['fee'], 0, ',', '.').'.');
+        $inv = $this->settlement->terbitSisaCash($batch);
+        if ($inv === null) {
+            return back()->with('error', 'Invoice sisa sudah terbit atau DP belum diterbitkan.');
+        }
+
+        return redirect()->route('invoices.show', $inv)->with('success',
+            'Invoice pelunasan sisa '.$inv->nomor.' Rp '.number_format($inv->total, 0, ',', '.').' terbit untuk TM.');
+    }
+
+    /** 420F bayar Diferd (modal) untuk batch cash — bertahap (DP-modal lalu sisa), dengan bukti. */
+    public function bayarDiferdCash(Request $request, Batch $batch)
+    {
+        if (! $batch->isCash()) {
+            return back()->with('error', 'Batch ini bukan tipe pembayaran cash.');
+        }
+        $data = $request->validate([
+            'bukti_transfer' => ['nullable', 'file', 'max:5120', 'mimes:jpg,jpeg,png,pdf'],
+        ]);
+        $bukti = isset($data['bukti_transfer'])
+            ? $request->file('bukti_transfer')->store('vendor-cash/'.$batch->id, 'public')
+            : null;
+
+        $nilai = $this->settlement->bayarDiferdCash($batch, $bukti);
+        if ($nilai === null) {
+            if ($bukti) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($bukti);
+            }
+
+            return back()->with('error', 'Modal Diferd sudah lunas, atau tahap belum tersedia.');
+        }
+
+        return back()->with('success', 'Pembayaran ke Diferd dicatat: Rp '.number_format($nilai, 0, ',', '.').'.');
     }
 
     /**
@@ -189,6 +247,9 @@ class SettlementController extends Controller
     {
         if (! $batch->isCash()) {
             return back()->with('error', 'Batch ini bukan tipe pembayaran cash.');
+        }
+        if ($batch->isCashDP()) {
+            return back()->with('error', 'Batch DP: reject otomatis dipotong dari invoice pelunasan, tak perlu ganti manual.');
         }
 
         $sisa = $this->settlement->gantiCashSisa($batch);
@@ -207,46 +268,74 @@ class SettlementController extends Controller
         $nilaiDiferd = $data['metode'] === 'refund' ? (int) round($sisa['diferd'] * $pcs / $sisa['pcs']) : 0;
         $nilaiTm420 = $data['metode'] === 'refund' ? (int) round($sisa['tm420'] * $pcs / $sisa['pcs']) : 0;
 
-        DB::transaction(function () use ($batch, $data, $pcs, $nilaiDiferd, $nilaiTm420) {
-            \App\Models\CashGanti::create([
-                'batch_id' => $batch->id,
-                'brand_id' => $batch->brand_id,
-                'metode' => $data['metode'],
-                'pcs' => $pcs,
-                'nilai_diferd' => $nilaiDiferd,
-                'nilai_tm420' => $nilaiTm420,
-                'tanggal' => now(),
-                'keterangan' => $data['keterangan'] ?? null,
-            ]);
-
-            if ($data['metode'] === 'refund') {
-                // Diferd kembalikan uang → kurangi cash yang sudah dibayar (nilai negatif).
-                VendorLedger::create([
-                    'brand_id' => $batch->brand_id,
-                    'batch_id' => $batch->id,
-                    'tanggal' => now(),
-                    'tipe' => LedgerTipe::Cash->value,
-                    'jumlah' => -$nilaiDiferd,
-                    'keterangan' => 'Refund reject cash batch '.$batch->nomor_batch.' — Diferd kembalikan '.$pcs.' pcs',
-                ]);
-                // 420F teruskan refund ke TM → kurangi tagihan/uang masuk TM (nilai negatif).
-                // Keterangan diawali "Cash batch" agar tertangkap filter cash di Cashflow (fee &
-                // transfer khusus net turun sesuai refund — 420F mengembalikan margin unit hantu).
-                BrandLedger::create([
-                    'brand_id' => $batch->brand_id,
-                    'tanggal' => now(),
-                    'jumlah' => -$nilaiTm420,
-                    'keterangan' => 'Cash batch '.$batch->nomor_batch.' — refund reject ke TM ('.$pcs.' pcs)',
-                ]);
-            }
-        });
+        // Refund kini hanya MENDEKLARASIKAN kewajiban. Uang bergerak lewat 2 langkah ber-bukti
+        // (refund-diferd-masuk & refund-teruskan-tm). Barang = re-produksi, tak ada uang bergerak.
+        \App\Models\CashGanti::create([
+            'batch_id' => $batch->id,
+            'brand_id' => $batch->brand_id,
+            'metode' => $data['metode'],
+            'pcs' => $pcs,
+            'nilai_diferd' => $nilaiDiferd,
+            'nilai_tm420' => $nilaiTm420,
+            'tanggal' => now(),
+            'keterangan' => $data['keterangan'] ?? null,
+        ]);
 
         if ($data['metode'] === 'refund') {
-            return back()->with('success', 'Refund reject dicatat: Diferd kembalikan Rp '.number_format($nilaiDiferd, 0, ',', '.')
-                .', diteruskan ke TM Rp '.number_format($nilaiTm420, 0, ',', '.').' ('.$pcs.' pcs).');
+            return back()->with('success', 'Refund '.$pcs.' pcs dideklarasikan: Diferd wajib kembalikan Rp '
+                .number_format($nilaiDiferd, 0, ',', '.').', diteruskan ke TM Rp '.number_format($nilaiTm420, 0, ',', '.')
+                .'. Catat kedua transfer + bukti di bawah.');
         }
 
         return back()->with('success', $pcs.' pcs reject ditandai sudah diganti barang oleh Diferd.');
+    }
+
+    /** Langkah 1 refund: Diferd kembalikan uang ke 420F (+bukti). */
+    public function refundDiferdMasuk(Request $request, \App\Models\CashGanti $cashGanti)
+    {
+        if (! $cashGanti->isRefund() || $cashGanti->diferdSudahKembalikan()) {
+            return back()->with('error', 'Langkah ini tidak berlaku / sudah dicatat.');
+        }
+        $data = $request->validate(['bukti_transfer' => ['nullable', 'file', 'max:5120', 'mimes:jpg,jpeg,png,pdf']]);
+        $bukti = isset($data['bukti_transfer']) ? $request->file('bukti_transfer')->store('cash-ganti/'.$cashGanti->id, 'public') : null;
+
+        DB::transaction(function () use ($cashGanti, $bukti) {
+            // Uang balik dari Diferd → kurangi modal cash yang sudah dibayar (nilai negatif).
+            VendorLedger::create([
+                'brand_id' => $cashGanti->brand_id, 'batch_id' => $cashGanti->batch_id, 'tanggal' => now(),
+                'tipe' => LedgerTipe::Cash->value, 'jumlah' => -$cashGanti->nilai_diferd,
+                'keterangan' => 'Refund reject batch '.$cashGanti->batch->nomor_batch.' — Diferd kembalikan '.$cashGanti->pcs.' pcs',
+                'bukti_transfer' => $bukti,
+            ]);
+            $cashGanti->update(['bukti_diferd' => $bukti, 'tgl_diferd' => now()]);
+        });
+
+        return back()->with('success', 'Pengembalian dari Diferd dicatat: Rp '.number_format($cashGanti->nilai_diferd, 0, ',', '.').'.');
+    }
+
+    /** Langkah 2 refund: 420F teruskan refund ke TM (+bukti). */
+    public function refundTeruskanTm(Request $request, \App\Models\CashGanti $cashGanti)
+    {
+        if (! $cashGanti->isRefund() || $cashGanti->sudahDiteruskanTm()) {
+            return back()->with('error', 'Langkah ini tidak berlaku / sudah dicatat.');
+        }
+        if (! $cashGanti->diferdSudahKembalikan()) {
+            return back()->with('error', 'Catat dulu pengembalian dari Diferd sebelum meneruskan ke TM.');
+        }
+        $data = $request->validate(['bukti_transfer' => ['nullable', 'file', 'max:5120', 'mimes:jpg,jpeg,png,pdf']]);
+        $bukti = isset($data['bukti_transfer']) ? $request->file('bukti_transfer')->store('cash-ganti/'.$cashGanti->id, 'public') : null;
+
+        DB::transaction(function () use ($cashGanti, $bukti) {
+            // 420F teruskan ke TM → uang masuk TM berkurang (nilai negatif). Awalan "Cash batch"
+            // agar tertangkap filter cash di Cashflow (bukan transfer penjualan biasa).
+            BrandLedger::create([
+                'brand_id' => $cashGanti->brand_id, 'tanggal' => now(), 'jumlah' => -$cashGanti->nilai_tm420,
+                'keterangan' => 'Cash batch '.$cashGanti->batch->nomor_batch.' — refund reject diteruskan ke TM ('.$cashGanti->pcs.' pcs)',
+            ]);
+            $cashGanti->update(['bukti_tm' => $bukti, 'tgl_tm' => now()]);
+        });
+
+        return back()->with('success', 'Refund diteruskan ke TM: Rp '.number_format($cashGanti->nilai_tm420, 0, ',', '.').'.');
     }
 
     /**
@@ -282,6 +371,7 @@ class SettlementController extends Controller
             $invoice = Invoice::create([
                 'brand_id' => $batch->brand_id,
                 'batch_id' => $batch->id,
+                'jenis' => 'buyout',
                 'nomor' => $this->invoiceNomor($batch->brand),
                 'tanggal_terbit' => now(),
                 'status' => 'belum_bayar',
