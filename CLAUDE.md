@@ -55,10 +55,35 @@ Empat peran (`App\Enums\Role`, kolom `users.role`):
 ### Tipe pembayaran batch (`batches.type_payment`, `App\Enums\TypePayment`)
 1. **Termin (konsinyasi) — default.** Bayar **per barang terjual**. Diferd punya "hak" atas barang
    terjual; ditarik lewat **Penarikan**. TM ditagih lewat **Invoice** saat pesanan cair.
-2. **Cash — beli putus di muka.** Saat batch **disetujui**, otomatis dibayar penuh untuk seluruh
-   qty PO: TM→420F (`hargaTagihan`) & 420F→Diferd (`diferd`), 420F simpan margin. Stok **keluar
-   dari pool jual**. `Sale::consignment()` mengecualikan penjualan batch cash dari semua hitungan hak.
-   `LedgerTipe::Cash`. Reject di batch cash → **Diferd wajib ganti** (barang/refund) via `cash_ganti`.
+2. **Cash — beli putus, ALUR TAGIHAN (diubah 25 Jul 2026, bukan lagi auto-catat).** Saat batch
+   **disetujui**, terbit **invoice tagihan ke TM** (`invoices.jenis='cash'`, `jumlah_manual`=retail).
+   Uang masuk **hanya saat invoice ditandai lunas** (+bukti transfer), lewat alur invoice biasa
+   (`markPaid`→BrandLedger; `InvoiceController::markPaid` memanggil `reconcileCashLunas`). Saat
+   invoice cash lunas semua → `cash_dibayar` true → stok **keluar pool jual**.
+   `Sale::consignment()` tetap mengecualikan penjualan batch cash. `SettlementService::prosesCashBatch()`
+   kini **mengembalikan Invoice**, bukan mencatat ledger.
+   - **420F → Diferd (modal) = aksi TERPISAH + bukti.** `settlement.bayar-diferd-cash`
+     (`bayarDiferdCash`), VendorLedger tipe `cash` + `bukti_transfer`. Bertahap: **DP-modal dulu,
+     sisa-modal saat semua PO siap kirim**. `saldo` cash = modal yang belum dibayar
+     (`cashStatus['diferd_sisa']`).
+   - **Down payment (DP) — hanya cash.** `batches.dp_persen` (1–99). Saat disetujui terbit
+     **invoice DP%**. Invoice **pelunasan** terbit **SETELAH TM TERIMA barang** (semua PO `terkirim`),
+     `terbitSisaCash` → nilainya **sisa − reject** (`sisaCashNetReject`). `cash_dibayar` true saat
+     **kedua** invoice lunas. Sisi Diferd bertahap (DP-modal → sisa-modal, sisa-modal juga **net
+     reject**). Reject di batch DP **TIDAK** lewat refund — otomatis dipotong dari pelunasan (TM &
+     Diferd sama-sama bayar lebih sedikit); `gantiCash` menolak batch DP. Sisa = total − DP (tanpa
+     drift). `cashDpSplit()`, `cashStatus()` (`bisa_terbit_sisa`/`bisa_bayar_diferd` butuh diterima).
+   - Reject di batch cash → **Diferd wajib ganti** (barang/refund) via `cash_ganti`. **Refund =
+     2 langkah ber-bukti** (diubah 25 Jul 2026): `gantiCash` metode refund hanya MENDEKLARASIKAN
+     (buat CashGanti, belum gerakkan uang); lalu (1) `refund-diferd` Diferd kembalikan ke 420F
+     +bukti (VendorLedger −), (2) `refund-teruskan` 420F ke TM +bukti (BrandLedger −). Kolom
+     `cash_ganti.bukti_diferd/tgl_diferd/bukti_tm/tgl_tm`. `CashGanti::refundTuntas()`. Barang =
+     re-produksi, tak ada uang bergerak (langsung tuntas).
+   - **Stok cash pakai "terkirim", bukan "terjual"** — beli putus tak lewat konsinyasi. Settlement
+     tampilkan diterima/diproduksi (`stokBatch['is_cash']`).
+   - `invoices.jenis`: `penjualan` (order) / `buyout` / `cash`. `Invoice::isBuyout()`/`isCash()`
+     cek `jenis`; `isManual()` = `jumlah_manual>0`. tagihanBrand menghitung buyout+cash lewat
+     `jumlah_manual` (nama var `buyout` kini mencakup keduanya — matematikanya tetap konsisten).
 
 ### Buy-out sisa stok (di deadline)
 420F membeli sisa stok yang belum terjual. **Alurnya seperti TAGIHAN (bukan settle seketika):**
@@ -68,9 +93,12 @@ Empat peran (`App\Enums\Role`, kolom `users.role`):
 - 420F simpan margin (tm420 − diferd) saat invoice lunas.
 - Stok **keluar dari pool jual** (`batches.dibuyout`).
 
-### Deposit (modal produksi)
+### Deposit (modal produksi) — kartu UI DIHAPUS (25 Jul 2026), logika dorman
 Sekali di awal kerja sama, **GLOBAL** (bukan per batch), bukan hutang. Diselesaikan sekali di akhir
 (offset ke hak / dikembalikan) — `LedgerTipe::DepositSelesai`. `SettlementService::depositMengendap()`.
+> Deposit tidak dipakai (selalu 0). Kartu "Modal produksi / deposit" **dihapus** dari Settlement &
+> Dashboard Diferd. Logika/service **tetap dorman** (tak dihapus, aturan terkunci) — referensi lain
+> ber-guard `> 0` jadi tak tampil. Untuk menghidupkan lagi: munculkan kembali kartunya.
 
 ### Buku besar & penarikan
 - **`vendor_ledger`** (uang 420F→Diferd): tipe `pembayaran` / `deposit` / `deposit_selesai` /
@@ -107,8 +135,14 @@ Basis: **stok jual = DITERIMA − TERJUAL − KELUAR-SISTEM** (jangan pakai qty 
 - Keadaan lain: `unshippedInBatch` (di vendor), `inTransitInBatch` (di jalan), `rejectInBatch`
   (gagal QC setelah PO ditutup), `shortfallInBatch` (kurang/cacat saat terima).
 
-Reject/kurang **ditanggung vendor** (Diferd). Retur: kondisi `layak` → balik stok tanpa hak;
-`rusak` → stok hilang, brand tetap bayar produksi (`Sale::sold()` tetap true untuk rusak).
+**Siapa menanggung kerugian (ditegaskan 24 Jul 2026):**
+- **Retur pelanggan → kondisi `rusak`** = kerugian **BRAND (TM)**. Stok hilang, tapi brand **tetap
+  membayar** produksinya ke Diferd. `Sale::sold()` tetap true untuk rusak, dan pesanannya **wajib
+  bisa masuk invoice** — lihat `Order::scopeBisaDitagih()`. Kalau tidak, tagihannya menggantung
+  selamanya (pernah jadi bug: saldo brand minus setelah invoice dibayar lalu barang diretur).
+- **Reject PRODUKSI / kurang saat penerimaan** = kerugian **VENDOR (Diferd)**. Tidak pernah
+  ditagihkan ke brand. Ini selisih penerimaan (`shortfallInBatch`/`rejectInBatch`), bukan penjualan.
+- Retur kondisi `layak` → barang balik ke stok, brand tidak menanggung apa pun.
 
 ---
 
@@ -116,6 +150,14 @@ Reject/kurang **ditanggung vendor** (Diferd). Retur: kondisi `layak` → balik s
 
 `Batch` (Master PO) berisi banyak `PurchaseOrder` (PO per artikel), tiap PO punya `PoSizeItem`
 (qty per ukuran×jenis).
+
+- **Jenis produksi (`PoSizeItem.jenis`) DITENTUKAN OTOMATIS dari kategori** (diubah 25 Jul 2026),
+  bukan lagi diinput manual — cegah salah input (mis. "pendek" utk longsleeve). Sumber kebenaran:
+  `Category::jenisProduksi()` (keyword: longsleeve/double layer/hoodie→panjang; lekbong→lekbong;
+  raglan→raglan; selain itu→pendek). Form PO cuma minta **1 qty per ukuran** (`qty[ukuran]`);
+  `PurchaseOrderController::saveSizeItems` menyetel jenis dari `product->category->jenisProduksi()`
+  (tetap toleran thd format lama `qty[ukuran][jenis]` → dijumlahkan). Lekbong & Raglan **belum
+  dipakai** (belum ada harga), tapi mapping sudah siap.
 
 **Status batch** (`BatchStatus`): `menunggu` → (420F setujui) `aktif` / (tolak) `ditolak` →
 `lunas`. TM mengajukan, **hanya 420F yang menyetujui/menolak**. Batch `aktif` tapi produksi selesai
@@ -138,6 +180,10 @@ tetap berstatus `aktif` (status ≠ progres produksi).
   approval (`diajukan_oleh`/`disetujui_oleh`), deadline & deadline_produksi. `isCash()`.
 - **PurchaseOrder** — PO per artikel dalam batch. `tahap`, `tahap_updated_at`, spec produksi
   (bahan, sablon, ukuran desain depan/belakang/lengan, label/aksesoris). `hasMany PoSizeItem`.
+  Spec RIB: `ukuran_rib` = **RIB leher**, `ukuran_rib_lengan` = **RIB lengan** (dipisah 25 Jul 2026;
+  `warna_benang` dibuang). Kolom sama ada di `product_specs` (default per produk). Kalau import
+  `database/dump/*.sql` lama saat go-live, jalankan `php artisan migrate` setelahnya — migrasi
+  `..._rib_lengan_and_drop_warna_benang` yang menyelaraskan skema.
 - **PoSizeItem** — qty per ukuran & jenis produksi.
 - **Product** — artikel. `brand_id`, `category_id`, override harga, `sku_induk`.
   `hasMany ProductSize` (SKU turunan/ukuran), `ProductFile`, `hasOne ProductSpec`.
@@ -194,6 +240,10 @@ tetap berstatus `aktif` (status ≠ progres produksi).
 ## 10. Fitur Tambahan
 - **Import marketplace** (`MarketplaceImportService`): CSV/XLSX pesanan; guard — hanya buat sale
   yang menarik stok nyata (lewati produk stok 0). Snapshot harga pakai `hargaTagihan()`.
+  🔴 **Jangan pernah menyalakan perhitungan rumus saat membaca** (`toArray(null, false, …)`).
+  File income Shopee memuat baris ringkasan `==SUM(INDIRECT(...))` (dobel `=`, tak valid) yang
+  bikin PhpSpreadsheet melempar "Unexpected operator '='" → seluruh impor settlement gagal.
+  Importer hanya butuh nilai mentah. Dikunci oleh `tests/Feature/Erp/ImportShopeeFormulaTest.php`.
 - **Radar deadline** (paparan buy-out), **Scorecard vendor** (reject%/kurang%/bebas-cacat/ketepatan
   deadline), **Rekonsiliasi TM** (mingguan; tagihan cair + invoice buy-out vs transfer),
   **Rekomendasi produksi ulang**, **Rapor per artikel**, **Analisis per channel**.
@@ -201,6 +251,13 @@ tetap berstatus `aktif` (status ≠ progres produksi).
   `FONNTE_TOKEN` di `.env`; tanpa itu hanya nulis log (aman).
 - **PDF**: Master PO (`batches.pdf`), Invoice, Surat jalan — dompdf. Mockup/desain di PDF: upload
   ideal **Mockup 1400×800**, **Desain 1150×800** (landscape) agar penuh.
+  - **Master PO = SATU HALAMAN per PO** (dikunci 25 Jul 2026). Bagian "Rincian ukuran" cuma kolom
+    **Qty** (jenis sudah otomatis dari kategori), dan ruang kosong dipakai **Size chart per kategori**
+    (gambar titik-ukur + tabel ukuran badan cm). Sumber: `App\Support\SizeChart` (angka + pilih file)
+    dan gambar template di **`resources/size-charts/*.png`** (asli di `Dokumen Spek/Template Size Chart`).
+    Pemetaan file: double layer/hoodie punya template sendiri; longsleeve (termasuk Biowash) →
+    longsleeve; oversized→oversized; reguler & fallback pendek→reguler; fallback panjang→longsleeve.
+    Kalau menambah section ke PDF, jaga tetap satu halaman (cek jumlah objek `/Type /Page`).
 
 ---
 
@@ -242,9 +299,31 @@ zip aktif · (opsional) SMTP asli, `FONNTE_TOKEN`, cron `schedule:run`, `queue:w
   biasa bisa rollback; `TRUNCATE` tidak).
 - `php -l file.php` untuk lint; `php artisan view:cache` untuk cek blade kompilasi.
 
+### Mode paritas produksi di lokal (aktif sejak 23 Jul 2026)
+`.env` lokal sengaja disetel **menyerupai server live** supaya bug khas produksi muncul di sini:
+`APP_ENV=production`, `APP_DEBUG=false`, `LOG_STACK=daily`, `MAIL_MAILER=log`, `FILESYSTEM_DISK=public`,
+plus `config/route/view:cache` terpasang. Cadangan mode dev ada di **`.env.dev-backup`**.
+
+- **Satu beda disengaja:** `SESSION_SECURE_COOKIE=false` (produksi `true`). Lokal jalan di `http://`,
+  kalau `true` cookie sesi tak pernah terkirim dan login jadi mustahil.
+- **Ganti `.env` → WAJIB `php artisan config:cache`.** Kalau tidak, perubahan tak berefek karena
+  config sedang di-cache. Ini penyebab tersering "sudah diubah kok masih sama".
+- 🔴 **`php artisan config:clear` DULU sebelum `php artisan test`.** Config cache membakukan
+  `DB_DATABASE=420frequency`, sehingga `RefreshDatabase` akan **menghapus DB lokal** alih-alih memakai
+  `420frequency_test` dari `phpunit.xml`. Sesudah test, pasang lagi `config:cache`.
+- Balik ke mode dev: `cp .env.dev-backup .env && php artisan config:clear`.
+
 ---
 
 ## 13. Gotcha / Catatan
+- **Zona waktu:** `config/app.php` kini `env('APP_TIMEZONE', 'UTC')` dan `.env` diisi `Asia/Jakarta`.
+  Sebelum 23 Jul 2026 nilainya dipaku `'UTC'` sehingga `APP_TIMEZONE` diabaikan diam-diam — akibatnya
+  tindakan antara **00:00–07:00 WIB tercatat sebagai hari sebelumnya** (tanggal & nomor invoice,
+  perbandingan deadline, rekonsiliasi mingguan, jam audit log). Jangan kembalikan ke UTC.
+- **`public/storage` harus symlink, bukan folder biasa.** Saat project disalin antar perangkat/FTP,
+  symlink sering jadi folder kosong → `storage:link` diam saja & SEMUA gambar gagal tampil, padahal
+  tombol unduh tetap normal (unduh lewat controller, preview lewat URL `/storage/...`).
+  Cek `ls -la public/` harus ada tanda `->`.
 - **Kolom `jumlah` ledger signed** — refund reject cash pakai nilai negatif (jangan asumsikan positif).
 - **Konsistensi angka**: bila mengubah cara hitung uang/stok, samakan di SEMUA halaman (Dashboard,
   Cashflow, Settlement, Penarikan, Stok, Rapor). Bug sering muncul karena satu halaman menghitung beda.

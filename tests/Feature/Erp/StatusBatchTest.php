@@ -47,8 +47,15 @@ class StatusBatchTest extends ErpTestCase
 
     public function test_batch_cash_jadi_lunas_setelah_diterima(): void
     {
+        // Alur cash berbasis tagihan: TM bayar invoice + 420F bayar Diferd, baru lunas.
         $batch = $this->batchAktif($this->produkTm, ['M' => 10], 'cash');
-        $this->produksiTerima($batch);
+
+        $inv = \App\Models\Invoice::where('batch_id', $batch->id)->where('jenis', 'cash')->firstOrFail();
+        app(\App\Http\Controllers\InvoiceController::class)
+            ->markPaid($this->req($this->admin, ['tanggal_bayar' => now()->toDateString()], 'PATCH'), $inv);
+        app(\App\Http\Controllers\SettlementController::class)
+            ->bayarDiferdCash($this->req($this->admin, [], 'POST'), $batch->fresh());
+        $this->produksiTerima($batch->fresh());
 
         $this->settlement()->reconcileLunas();
         $this->assertSame(BatchStatus::Lunas, $batch->fresh()->status);
