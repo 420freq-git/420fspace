@@ -127,7 +127,9 @@
       "Bash(sed -n '/private function saveSizeItems/,/^    }/p' app/Http/Controllers/PurchaseOrderController.php)",
       "Bash(sed -n '/private function validated/,/^    }/p' app/Http/Controllers/PurchaseOrderController.php)",
       "Bash(sed -n '/public function terimaRetur/,/^    }/p' app/Http/Controllers/MonitoringController.php)",
-      "Bash(sed -n '/public function tolakRetur/,/^    }/p' app/Http/Controllers/MonitoringController.php)"
+      "Bash(sed -n '/public function tolakRetur/,/^    }/p' app/Http/Controllers/MonitoringController.php)",
+      "Bash(php artisan *)",
+      "Bash(ls /c/laragon/bin/php/ 2>/dev/null; echo \"---DUMP---\"; ls -la database/dump/ 2>/dev/null || echo \"folder database/dump TIDAK ADA\"; echo \"---BUILD---\"; ls public/build 2>/dev/null | head || echo \"public/build TIDAK ADA\"; echo \"---STORAGE LINK---\"; ls -la public/ | grep storage)"
     ]
   }
 }

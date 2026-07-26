@@ -29,3 +29,7 @@ Thumbs.db
 # Data & sementara (bukan kode)
 /storage/backup
 *.sql
+
+# Skrip lokal per-perangkat (path PHP Laragon spesifik; jangan ikut ke server)
+/jalankan-lokal.bat
+/.env.dev-backup
