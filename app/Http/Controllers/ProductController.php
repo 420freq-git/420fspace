@@ -391,8 +391,8 @@ class ProductController extends Controller
             'spec' => ['nullable', 'array'],
             'mockups.*' => ['nullable', 'image', 'max:5120'],
             'desains.*' => ['nullable', 'image', 'max:5120'],
-            // File mentahan produksi (AI/PSD/PDF/ZIP/dll) — sampai 25 MB per file
-            'mentahans.*' => ['nullable', 'file', 'max:25600'],
+            // File mentahan produksi (AI/PSD/PDF/ZIP/dll) — sampai 50 MB per file
+            'mentahans.*' => ['nullable', 'file', 'max:51200'],
         ]);
     }
 }

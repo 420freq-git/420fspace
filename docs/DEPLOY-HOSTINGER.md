@@ -111,6 +111,11 @@ chmod -R 775 storage bootstrap/cache
 - hPanel → **PHP Configuration** → pilih **PHP 8.3** → aktifkan ekstensi:
   `zip`, `pdo_mysql`, `mbstring`, `gd`/`imagick`, `fileinfo`, `openssl`, `bcmath`, `ctype`, `curl`.
   (`zip` WAJIB untuk unduh ZIP desain & upload xlsx settlement.)
+- **Batas upload** (untuk file mentahan ZIP/PSD/AI sampai 50 MB) — di **PHP Configuration**
+  (atau `.user.ini`/`.htaccess`) set minimal:
+  `upload_max_filesize=50M`, `post_max_size=64M` (post lebih besar dari upload karena memuat
+  field lain), `max_execution_time=120`. Default Hostinger sering lebih kecil → upload gagal
+  diam-diam. Validasi Laravel sudah 50 MB (`mentahans.*` max 51200 KB).
 
 ## 7. Optimasi produksi (SSH)
 ```
