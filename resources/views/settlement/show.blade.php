@@ -81,13 +81,18 @@
                         @if ($isAdmin && $cs['bisa_bayar_diferd'])
                             <form method="POST" action="{{ route('settlement.bayar-diferd-cash', $batch) }}" enctype="multipart/form-data" class="mt-3 space-y-2">
                                 @csrf
+                                <div>
+                                    <label class="block text-xs font-medium text-sand-600">Nominal transfer ke Diferd</label>
+                                    <div class="relative mt-1">
+                                        <span class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-sand-400">Rp</span>
+                                        <input type="number" name="nominal" min="1" step="1" value="{{ $cs['diferd_sisa'] }}" required
+                                               class="block w-full rounded-lg border-sand-300 pl-7 text-sm tnum focus:border-brand-600 focus:ring-brand-600">
+                                    </div>
+                                    <p class="mt-1 text-[11px] text-sand-400">Sisa modal terutang {{ $fmt($cs['diferd_sisa']) }}. Isi sesuai jumlah yang benar-benar kamu transfer (maks. sisa).</p>
+                                </div>
                                 <input type="file" name="bukti_transfer" accept="image/*,application/pdf" class="block w-full text-xs text-sand-600 file:mr-2 file:rounded file:border-0 file:bg-sand-100 file:px-2 file:py-1 file:text-xs">
-                                <button class="rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800">
-                                    Bayar Diferd {{ $cs['tahap_diferd'] === 'dp' ? '(DP-modal)' : '(pelunasan)' }} + bukti
-                                </button>
+                                <button class="rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800">Bayar Diferd (modal) + bukti</button>
                             </form>
-                        @elseif ($isAdmin && $cs['diferd_sisa'] > 0)
-                            <p class="mt-2 text-xs text-sand-500">Pelunasan modal dibuka saat semua PO siap kirim.</p>
                         @endif
                     </div>
                 </div>

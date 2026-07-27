@@ -48,9 +48,9 @@ class CashTest extends ErpTestCase
     {
         $batch = $this->batchAktif($this->produkTm, ['M' => 10], 'cash');
 
-        // 420F bayar Diferd modal penuh (10 × 60.000 = 600.000), dengan bukti.
+        // 420F bayar Diferd modal penuh (10 × 60.000 = 600.000) — input nominal manual, dgn bukti.
         app(\App\Http\Controllers\SettlementController::class)
-            ->bayarDiferdCash($this->req($this->admin, [], 'POST'), $batch);
+            ->bayarDiferdCash($this->req($this->admin, ['nominal' => 600000], 'POST'), $batch);
 
         $this->assertSame(600000, $this->settlement()->diferdCashDibayar($batch));
         $this->assertSame(0, $this->settlement()->cashStatus($batch->fresh())['diferd_sisa']);

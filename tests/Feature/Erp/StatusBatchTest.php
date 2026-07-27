@@ -54,7 +54,7 @@ class StatusBatchTest extends ErpTestCase
         app(\App\Http\Controllers\InvoiceController::class)
             ->markPaid($this->req($this->admin, ['tanggal_bayar' => now()->toDateString()], 'PATCH'), $inv);
         app(\App\Http\Controllers\SettlementController::class)
-            ->bayarDiferdCash($this->req($this->admin, [], 'POST'), $batch->fresh());
+            ->bayarDiferdCash($this->req($this->admin, ['nominal' => 600000], 'POST'), $batch->fresh());
         $this->produksiTerima($batch->fresh());
 
         $this->settlement()->reconcileLunas();

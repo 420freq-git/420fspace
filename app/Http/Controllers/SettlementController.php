@@ -216,22 +216,28 @@ class SettlementController extends Controller
             return back()->with('error', 'Batch ini bukan tipe pembayaran cash.');
         }
         $data = $request->validate([
+            'nominal' => ['required', 'integer', 'min:1'],
             'bukti_transfer' => ['nullable', 'file', 'max:5120', 'mimes:jpg,jpeg,png,pdf'],
         ]);
-        $bukti = isset($data['bukti_transfer'])
+        $bukti = $request->hasFile('bukti_transfer')
             ? $request->file('bukti_transfer')->store('vendor-cash/'.$batch->id, 'public')
             : null;
 
-        $nilai = $this->settlement->bayarDiferdCash($batch, $bukti);
+        $nilai = $this->settlement->bayarDiferdCash($batch, (int) $data['nominal'], $bukti);
         if ($nilai === null) {
             if ($bukti) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($bukti);
             }
 
-            return back()->with('error', 'Modal Diferd sudah lunas, atau tahap belum tersedia.');
+            return back()->with('error', 'Modal Diferd untuk batch ini sudah lunas.');
         }
 
-        return back()->with('success', 'Pembayaran ke Diferd dicatat: Rp '.number_format($nilai, 0, ',', '.').'.');
+        $pesan = 'Pembayaran ke Diferd dicatat: Rp '.number_format($nilai, 0, ',', '.').'.';
+        if ($nilai < (int) $data['nominal']) {
+            $pesan .= ' Nominal dibatasi ke sisa modal yang masih terutang.';
+        }
+
+        return back()->with('success', $pesan);
     }
 
     /**

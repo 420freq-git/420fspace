@@ -63,9 +63,11 @@ Empat peran (`App\Enums\Role`, kolom `users.role`):
    `Sale::consignment()` tetap mengecualikan penjualan batch cash. `SettlementService::prosesCashBatch()`
    kini **mengembalikan Invoice**, bukan mencatat ledger.
    - **420F → Diferd (modal) = aksi TERPISAH + bukti.** `settlement.bayar-diferd-cash`
-     (`bayarDiferdCash`), VendorLedger tipe `cash` + `bukti_transfer`. Bertahap: **DP-modal dulu,
-     sisa-modal saat semua PO siap kirim**. `saldo` cash = modal yang belum dibayar
-     (`cashStatus['diferd_sisa']`).
+     (`bayarDiferdCash`), VendorLedger tipe `cash` + `bukti_transfer`. **Nominal DIINPUT MANUAL**
+     (diubah 27 Jul 2026 dari hitung-otomatis bertahap) — isi sesuai jumlah yang benar-benar
+     ditransfer, **di-cap ke sisa terutang** (`diferdModalOwed − diferdCashDibayar`) supaya tak
+     overpay; bisa dicicil berapa kali pun. `diferdModalOwed()` = modal Diferd net reject (DP &
+     sudah diterima). `saldo` cash = `cashStatus['diferd_sisa']`.
    - **Down payment (DP) — hanya cash.** DP diisi **NOMINAL Rp** (`batches.dp_nominal`, diubah
      27 Jul 2026 dari persen; kolom `dp_persen` ditinggalkan/tak dipakai). Nominal = jumlah yang
      **ditagih ke brand** (sisi tagihan/tm420); sisi **Diferd (modal) proporsional** (rasio
@@ -74,8 +76,8 @@ Empat peran (`App\Enums\Role`, kolom `users.role`):
      menolak bila `dp_nominal ≥ total tagihan`. Saat disetujui terbit **invoice DP** (nominal).
      Invoice **pelunasan** terbit **SETELAH TM TERIMA barang** (semua PO `terkirim`),
      `terbitSisaCash` → nilainya **sisa − reject** (`sisaCashNetReject`). `cash_dibayar` true saat
-     **kedua** invoice lunas. Sisi Diferd bertahap (DP-modal → sisa-modal, sisa-modal juga **net
-     reject**). Reject di batch DP **TIDAK** lewat refund — otomatis dipotong dari pelunasan (TM &
+     **kedua** invoice lunas. Sisi Diferd dibayar via **nominal manual** (di-cap sisa terutang;
+     modal net reject setelah diterima). Reject di batch DP **TIDAK** lewat refund — otomatis dipotong dari pelunasan (TM &
      Diferd sama-sama bayar lebih sedikit); `gantiCash` menolak batch DP. Sisa = total − DP (tanpa
      drift). `cashDpSplit()`, `cashStatus()` (`bisa_terbit_sisa`/`bisa_bayar_diferd` butuh diterima).
    - Reject di batch cash → **Diferd wajib ganti** (barang/refund) via `cash_ganti`. **Refund =

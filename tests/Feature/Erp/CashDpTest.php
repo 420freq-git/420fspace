@@ -109,8 +109,8 @@ class CashDpTest extends ErpTestCase
 
         // Diferd: DP-modal 300.000 + sisa-modal net reject (300.000 − 120.000 = 180.000) = 480.000.
         $sc = app(\App\Http\Controllers\SettlementController::class);
-        $sc->bayarDiferdCash($this->req($this->admin, [], 'POST'), $batch->fresh());   // DP-modal
-        $sc->bayarDiferdCash($this->req($this->admin, [], 'POST'), $batch->fresh());   // sisa-modal net reject
+        $sc->bayarDiferdCash($this->req($this->admin, ['nominal' => 300000], 'POST'), $batch->fresh());   // DP-modal (nominal manual)
+        $sc->bayarDiferdCash($this->req($this->admin, ['nominal' => 180000], 'POST'), $batch->fresh());   // sisa-modal net reject
         $this->assertSame(480000, $this->settlement()->diferdCashDibayar($batch->fresh()), 'Diferd dibayar untuk pcs yang sampai saja.');
 
         // TM bayar pelunasan → batch lunas.

@@ -567,45 +567,38 @@ class SettlementService
     }
 
     /**
-     * Bayar Diferd tahap berikutnya (DP-modal dulu, sisa-modal saat pelunasan) — dengan bukti.
-     * Return nilai yang dibayar, atau null bila tak ada tahap tersisa.
+     * Total modal (harga Diferd) yang terutang 420F ke Diferd untuk batch cash ini.
+     * Untuk batch DP yang barangnya sudah DITERIMA, reject dipotong (Diferd tak dibayar untuk
+     * pcs yang tak sampai). Non-DP: reject ditangani lewat alur ganti terpisah, jadi tetap penuh.
      */
-    public function bayarDiferdCash(Batch $batch, ?string $bukti = null): ?int
+    public function diferdModalOwed(Batch $batch): int
     {
-        if (! $batch->isCash()) {
-            return null;
-        }
         $total = $this->cashTotals($batch)['diferd'];
-        $dibayar = $this->diferdCashDibayar($batch);
-        if ($dibayar >= $total) {
+        $reject = ($batch->isCashDP() && $this->semuaDiterima($batch)) ? $this->gantiCashObligasi($batch)['diferd'] : 0;
+
+        return max(0, $total - $reject);
+    }
+
+    /**
+     * Catat pembayaran 420F → Diferd (modal) sebesar NOMINAL yang diinput (bukan hitung otomatis),
+     * dengan bukti. Nilai di-cap ke sisa modal yang masih terutang supaya tak pernah overpay.
+     * Return nilai yang benar-benar dicatat, atau null bila modal sudah lunas / nominal tak valid.
+     */
+    public function bayarDiferdCash(Batch $batch, int $nominal, ?string $bukti = null): ?int
+    {
+        if (! $batch->isCash() || $nominal <= 0) {
             return null;
         }
-
-        if ($batch->isCashDP()) {
-            $dpModal = $this->cashDpSplit($batch)['dp']['diferd'];
-            if ($dibayar < $dpModal) {
-                [$nilai, $label] = [$dpModal - $dibayar, 'DP-modal'];
-            } else {
-                // Sisa-modal (DP): baru setelah barang DITERIMA (reject final) & DIPOTONG reject —
-                // Diferd tak dibayar untuk pcs yang tak sampai.
-                if (! $this->semuaDiterima($batch)) {
-                    return null;
-                }
-                $net = $this->sisaCashNetReject($batch);
-                $nilai = $net['diferd'] - ($dibayar - $dpModal);   // sisa-modal net reject, dikurangi yg sudah dicicil
-                if ($nilai <= 0) {
-                    return null;
-                }
-                $label = $net['reject_pcs'] > 0 ? 'pelunasan modal (−reject)' : 'pelunasan modal';
-            }
-        } else {
-            [$nilai, $label] = [$total - $dibayar, 'bayar modal penuh'];
+        $sisa = max(0, $this->diferdModalOwed($batch) - $this->diferdCashDibayar($batch));
+        if ($sisa <= 0) {
+            return null;   // modal sudah lunas
         }
+        $nilai = min($nominal, $sisa);
 
         VendorLedger::create([
             'brand_id' => $batch->brand_id, 'batch_id' => $batch->id, 'tanggal' => now(),
             'tipe' => \App\Enums\LedgerTipe::Cash->value, 'jumlah' => $nilai,
-            'keterangan' => 'Cash batch '.$batch->nomor_batch.' — '.$label.' ke Diferd',
+            'keterangan' => 'Cash batch '.$batch->nomor_batch.' — bayar modal ke Diferd',
             'bukti_transfer' => $bukti,
         ]);
 
@@ -641,13 +634,10 @@ class SettlementService
 
         $diterima = $this->semuaDiterima($batch);
 
-        $dpModal = $split ? $split['dp']['diferd'] : 0;
-        $tahapDiferd = ! $batch->isCashDP() ? 'penuh' : ($diferdDibayar < $dpModal ? 'dp' : 'sisa');
-
         // Modal efektif ke Diferd: DP batch yg sudah diterima dipotong reject (Diferd tak dibayar
         // untuk pcs yang tak sampai). Sebelum diterima, reject belum final → pakai total penuh.
         $rejectModal = ($batch->isCashDP() && $diterima) ? $this->gantiCashObligasi($batch)['diferd'] : 0;
-        $diferdEfektif = max(0, $t['diferd'] - $rejectModal);
+        $diferdEfektif = $this->diferdModalOwed($batch);
 
         return [
             'pakai_dp' => $batch->isCashDP(),
@@ -664,11 +654,10 @@ class SettlementService
             'diferd_total' => $diferdEfektif,
             'diferd_dibayar' => $diferdDibayar,
             'diferd_sisa' => max(0, $diferdEfektif - $diferdDibayar),
-            'tahap_diferd' => $tahapDiferd,          // dp | sisa | penuh
-            // Aksi tersedia — pelunasan (invoice sisa & sisa-modal) baru SETELAH barang diterima.
+            // Invoice pelunasan (sisa) ke TM baru SETELAH barang diterima.
             'bisa_terbit_sisa' => $batch->isCashDP() && $inv->count() === 1 && $diterima,
-            'bisa_bayar_diferd' => $diferdDibayar < $diferdEfektif
-                && ($tahapDiferd !== 'sisa' || $diterima),
+            // Pembayaran modal ke Diferd = input nominal manual; bisa selama masih ada sisa terutang.
+            'bisa_bayar_diferd' => $diferdDibayar < $diferdEfektif,
         ];
     }
 
