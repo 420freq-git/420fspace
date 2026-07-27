@@ -64,7 +64,7 @@ class BatchController extends Controller
             'jenis_order' => $data['jenis_order'],
             'type_payment' => $data['type_payment'],
             // DP hanya berlaku untuk cash; mode lain diabaikan.
-            'dp_persen' => $data['type_payment'] === TypePayment::Cash->value ? ($data['dp_persen'] ?? null) : null,
+            'dp_nominal' => $data['type_payment'] === TypePayment::Cash->value ? ($data['dp_nominal'] ?? null) : null,
             'status' => $perluApproval ? BatchStatus::Menunggu : BatchStatus::Aktif,
             'diajukan_oleh' => $user->id,
             'disetujui_oleh' => $perluApproval ? null : $user->id,
@@ -84,6 +84,18 @@ class BatchController extends Controller
         }
         if ($batch->purchaseOrders()->count() === 0) {
             return back()->with('error', 'Batch belum punya PO artikel — tidak ada yang bisa diteruskan ke vendor.');
+        }
+
+        // DP nominal baru bisa divalidasi terhadap total di sini (total = setelah PO diisi).
+        // DP ≥ total tak masuk akal (itu bukan "sebagian di muka") → tolak, minta perbaiki.
+        if ($batch->isCashDP()) {
+            $totalTm = app(\App\Services\SettlementService::class)->cashTotals($batch)['tm420'];
+            if ((int) $batch->dp_nominal >= $totalTm) {
+                $fmt = fn ($n) => 'Rp '.number_format((int) $n, 0, ',', '.');
+
+                return back()->with('error', 'DP '.$fmt($batch->dp_nominal).' ≥ total tagihan '.$fmt($totalTm).
+                    '. Kurangi nominal DP, atau kosongkan DP untuk cash penuh di muka.');
+            }
         }
 
         $batch->update([
@@ -334,7 +346,7 @@ class BatchController extends Controller
             'jenis_order' => ['required', new Enum(JenisOrder::class)],
             'type_payment' => ['required', new Enum(TypePayment::class)],
             // DP hanya untuk cash; 1–99% (100 = cash penuh biasa, kosong = tanpa DP).
-            'dp_persen' => ['nullable', 'integer', 'min:1', 'max:99'],
+            'dp_nominal' => ['nullable', 'integer', 'min:1'],
             'status' => ['nullable', new Enum(\App\Enums\BatchStatus::class)],
         ]);
     }

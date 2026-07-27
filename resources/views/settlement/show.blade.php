@@ -33,7 +33,7 @@
             @php $cs = $summary['cash_status']; @endphp
             <div class="rounded-xl border {{ $cs['lunas'] ? 'border-indigo-200 bg-indigo-50' : 'border-amber-200 bg-amber-50' }} shadow-sm p-6">
                 <div>
-                    <h2 class="text-sm font-semibold text-indigo-900">Batch pembayaran CASH (beli putus)@if ($cs['pakai_dp']) · DP {{ $cs['persen'] }}%@endif</h2>
+                    <h2 class="text-sm font-semibold text-indigo-900">Batch pembayaran CASH (beli putus)@if ($cs['pakai_dp']) · DP Rp {{ number_format($cs['dp_nominal'], 0, ',', '.') }}@endif</h2>
                     <p class="mt-1 text-sm {{ $cs['lunas'] ? 'text-indigo-700' : 'text-amber-800' }}">
                         {{ $cs['lunas'] ? 'Lunas penuh — stok keluar sistem (milik TM420).' : 'Ditagih lewat invoice; uang masuk saat invoice ditandai lunas + bukti.' }}
                     </p>

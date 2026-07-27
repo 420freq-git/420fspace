@@ -427,20 +427,24 @@ class SettlementService
      */
     /**
      * Pecahan pembayaran cash bila pakai DP: bagian DP (di muka) & sisa (saat siap kirim).
-     * Sisa = total − DP (bukan hitung persen ulang) supaya DP + sisa = total persis, tanpa drift.
      *
-     * @return array{persen:int, dp:array{diferd:int,tm420:int,fee:int}, sisa:array{diferd:int,tm420:int,fee:int}}
+     * DP diisi sebagai NOMINAL Rp pada sisi TAGIHAN (tm420) = yang ditagih ke brand di muka.
+     * Sisi Diferd (modal) diturunkan PROPORSIONAL (rasio DP/total tagihan) supaya fee 420F tetap
+     * konsisten. Sisa = total − DP (bukan hitung ulang) → DP + sisa = total persis, tanpa drift.
+     * DP di-cap ke total (jaga-jaga); batas "DP < total" ditegakkan saat approval.
+     *
+     * @return array{dp_nominal:int, dp:array{diferd:int,tm420:int,fee:int}, sisa:array{diferd:int,tm420:int,fee:int}}
      */
     public function cashDpSplit(Batch $batch): array
     {
         $t = $this->cashTotals($batch);
-        $p = (int) $batch->dp_persen;
 
-        $dpDiferd = (int) round($t['diferd'] * $p / 100);
-        $dpTm = (int) round($t['tm420'] * $p / 100);
+        $dpTm = min((int) $batch->dp_nominal, $t['tm420']);
+        $ratio = $t['tm420'] > 0 ? $dpTm / $t['tm420'] : 0;
+        $dpDiferd = (int) round($t['diferd'] * $ratio);
 
         return [
-            'persen' => $p,
+            'dp_nominal' => (int) $batch->dp_nominal,
             'dp' => ['diferd' => $dpDiferd, 'tm420' => $dpTm, 'fee' => $dpTm - $dpDiferd],
             'sisa' => ['diferd' => $t['diferd'] - $dpDiferd, 'tm420' => $t['tm420'] - $dpTm, 'fee' => ($t['tm420'] - $dpTm) - ($t['diferd'] - $dpDiferd)],
         ];
@@ -504,7 +508,7 @@ class SettlementService
         if ($batch->isCashDP()) {
             $dp = $this->cashDpSplit($batch)['dp'];
 
-            return $this->buatInvoiceCash($batch, $dp['tm420'], $t['pcs'], 'DP '.$batch->dp_persen.'%');
+            return $this->buatInvoiceCash($batch, $dp['tm420'], $t['pcs'], 'DP Rp '.number_format($dp['tm420'], 0, ',', '.'));
         }
 
         return $this->buatInvoiceCash($batch, $t['tm420'], $t['pcs'], 'Tagihan cash penuh');
@@ -647,7 +651,7 @@ class SettlementService
 
         return [
             'pakai_dp' => $batch->isCashDP(),
-            'persen' => (int) ($batch->dp_persen ?? 0),
+            'dp_nominal' => $split ? (int) $split['dp']['tm420'] : 0,
             'totals' => $t,
             'split' => $split,
             'dp_inv' => $inv->get(0),
@@ -739,7 +743,7 @@ class SettlementService
             return [
                 'cash' => true,
                 'cash_dibayar' => (bool) $batch->cash_dibayar,
-                'dp_persen' => (int) ($batch->dp_persen ?? 0),
+                'dp_nominal' => (int) ($batch->dp_nominal ?? 0),
                 'cash_status' => $cs,
                 'kewajiban' => $cash['diferd'],
                 'hak_jual' => $cash['diferd'],

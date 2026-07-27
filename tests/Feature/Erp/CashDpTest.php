@@ -15,14 +15,15 @@ use Tests\ErpTestCase;
  */
 class CashDpTest extends ErpTestCase
 {
-    private function batchCashDp(int $dpPersen, array $qty): Batch
+    /** Bangun batch cash DP (DP = NOMINAL Rp) tanpa approve. */
+    private function batchCashDpTanpaApprove(int $dpNominal, array $qty): Batch
     {
         $bc = app(\App\Http\Controllers\BatchController::class);
         $poc = app(\App\Http\Controllers\PurchaseOrderController::class);
 
         $bc->store($this->req($this->tm, [
             'brand_id' => $this->brandTm->id, 'tanggal_order' => now()->subDays(5)->toDateString(),
-            'jenis_order' => 'full_order', 'type_payment' => 'cash', 'dp_persen' => $dpPersen,
+            'jenis_order' => 'full_order', 'type_payment' => 'cash', 'dp_nominal' => $dpNominal,
         ]));
         $batch = Batch::latest('id')->first();
         $batch->update(['deadline' => now()->addDays(30)->toDateString(), 'deadline_produksi' => now()->addDays(10)->toDateString()]);
@@ -32,7 +33,14 @@ class CashDpTest extends ErpTestCase
             $poQty[$uk] = ['pendek' => $n];
         }
         $poc->store($this->req($this->tm, ['product_id' => $this->produkTm->id, 'qty' => $poQty]), $batch);
-        $bc->approve($this->req($this->admin), $batch->fresh());
+
+        return $batch->fresh();
+    }
+
+    private function batchCashDp(int $dpNominal, array $qty): Batch
+    {
+        $batch = $this->batchCashDpTanpaApprove($dpNominal, $qty);
+        app(\App\Http\Controllers\BatchController::class)->approve($this->req($this->admin), $batch);
 
         return $batch->fresh();
     }
@@ -50,16 +58,26 @@ class CashDpTest extends ErpTestCase
 
     public function test_setuju_dp_terbit_invoice_dp_saja(): void
     {
-        // 10 M → total TM 700.000. DP 50% → invoice DP 350.000.
-        $batch = $this->batchCashDp(50, ['M' => 10]);
+        // 10 M → total TM 700.000. DP nominal Rp 350.000 → invoice DP 350.000.
+        $batch = $this->batchCashDp(350000, ['M' => 10]);
         $inv = Invoice::where('batch_id', $batch->id)->where('jenis', 'cash')->get();
         $this->assertCount(1, $inv);
         $this->assertSame(350000, (int) $inv->first()->total);
     }
 
+    public function test_dp_nominal_melebihi_total_ditolak(): void
+    {
+        // Total TM 700.000. DP 800.000 (≥ total) → approve ditolak: status tetap menunggu, tak ada invoice.
+        $batch = $this->batchCashDpTanpaApprove(800000, ['M' => 10]);
+        app(\App\Http\Controllers\BatchController::class)->approve($this->req($this->admin), $batch);
+
+        $this->assertSame('menunggu', $batch->fresh()->status->value, 'Batch tak boleh disetujui saat DP ≥ total.');
+        $this->assertCount(0, Invoice::where('batch_id', $batch->id)->where('jenis', 'cash')->get());
+    }
+
     public function test_pelunasan_baru_terbit_setelah_diterima(): void
     {
-        $batch = $this->batchCashDp(50, ['M' => 10]);
+        $batch = $this->batchCashDp(350000, ['M' => 10]);
         $this->bayarInvoice(Invoice::where('batch_id', $batch->id)->where('jenis', 'cash')->firstOrFail());
 
         // Baru siap kirim (belum diterima) → pelunasan BELUM boleh terbit.
@@ -81,7 +99,7 @@ class CashDpTest extends ErpTestCase
     public function test_reject_dp_dipotong_dari_pelunasan(): void
     {
         // 10 M, DP 50%. Terima 8 (2 reject). Pelunasan = sisa 350.000 − reject 2×70.000 = 210.000.
-        $batch = $this->batchCashDp(50, ['M' => 10]);
+        $batch = $this->batchCashDp(350000, ['M' => 10]);
         $this->bayarInvoice(Invoice::where('batch_id', $batch->id)->where('jenis', 'cash')->firstOrFail());
         $this->produksiTerima($batch->fresh(), [$this->produkTm->id.'|M' => 8]);
 
@@ -102,7 +120,7 @@ class CashDpTest extends ErpTestCase
 
     public function test_reject_dp_tak_pakai_alur_refund_manual(): void
     {
-        $batch = $this->batchCashDp(50, ['M' => 10]);
+        $batch = $this->batchCashDp(350000, ['M' => 10]);
         $this->bayarInvoice(Invoice::where('batch_id', $batch->id)->where('jenis', 'cash')->firstOrFail());
         $this->produksiTerima($batch->fresh(), [$this->produkTm->id.'|M' => 8]);
 
@@ -114,7 +132,7 @@ class CashDpTest extends ErpTestCase
 
     public function test_dp_plus_sisa_selalu_sama_dengan_total(): void
     {
-        $batch = $this->batchCashDp(33, ['M' => 10, 'L' => 5]);
+        $batch = $this->batchCashDp(400000, ['M' => 10, 'L' => 5]);
         $split = $this->settlement()->cashDpSplit($batch);
         $total = $this->settlement()->cashTotals($batch);
         $this->assertSame($total['diferd'], $split['dp']['diferd'] + $split['sisa']['diferd']);

@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'brand_id', 'nomor_batch', 'vendor', 'tanggal_order', 'deadline', 'deadline_produksi',
     'jenis_order', 'type_payment', 'deposit_awal', 'deposit_rekonsiliasi', 'tgl_rekonsiliasi', 'status',
     'diajukan_oleh', 'disetujui_oleh', 'tgl_approval', 'catatan_approval', 'dibuyout', 'tgl_buyout',
-    'cash_dibayar', 'tgl_cash', 'dp_persen', 'dp_dibayar', 'tgl_dp',
+    'cash_dibayar', 'tgl_cash', 'dp_persen', 'dp_nominal', 'dp_dibayar', 'tgl_dp',
 ])]
 class Batch extends Model
 {
@@ -44,6 +44,7 @@ class Batch extends Model
             'cash_dibayar' => 'boolean',
             'tgl_cash' => 'datetime',
             'dp_persen' => 'integer',
+            'dp_nominal' => 'integer',
             'dp_dibayar' => 'boolean',
             'tgl_dp' => 'datetime',
         ];
@@ -59,10 +60,14 @@ class Batch extends Model
         return $this->type_payment === \App\Enums\TypePayment::Cash;
     }
 
-    /** Batch cash yang memakai skema down payment (DP di muka, sisa saat siap kirim). */
+    /**
+     * Batch cash yang memakai skema down payment (DP nominal di muka, sisa saat siap kirim).
+     * DP diisi sebagai nominal Rp (`dp_nominal`); harus > 0. Batas "DP < total" dicek saat
+     * approval (total baru diketahui setelah PO diisi).
+     */
     public function isCashDP(): bool
     {
-        return $this->isCash() && $this->dp_persen !== null && $this->dp_persen > 0 && $this->dp_persen < 100;
+        return $this->isCash() && (int) $this->dp_nominal > 0;
     }
 
     public function pengaju(): BelongsTo

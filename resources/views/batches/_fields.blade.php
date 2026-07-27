@@ -64,15 +64,15 @@
         {{-- DP hanya untuk cash: brand bayar sebagian di muka saat disetujui, sisa saat siap kirim.
              Kosong = cash penuh di muka (perilaku biasa). --}}
         <div x-show="payment === 'cash'" x-cloak>
-            <label for="dp_persen" class="block text-sm font-medium text-sand-700">Down payment (opsional)</label>
+            <label for="dp_nominal" class="block text-sm font-medium text-sand-700">Down payment — nominal (opsional)</label>
             <div class="mt-1 relative">
-                <input type="number" name="dp_persen" id="dp_persen" min="1" max="99"
-                       value="{{ old('dp_persen', $batch->dp_persen) }}" placeholder="mis. 50"
-                       class="block w-full rounded-lg border-sand-300 pr-8 focus:border-brand-600 focus:ring-brand-600 tnum">
-                <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-sand-400">%</span>
+                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-sand-400">Rp</span>
+                <input type="number" name="dp_nominal" id="dp_nominal" min="1" step="1000"
+                       value="{{ old('dp_nominal', $batch->dp_nominal) }}" placeholder="mis. 5000000"
+                       class="block w-full rounded-lg border-sand-300 pl-9 focus:border-brand-600 focus:ring-brand-600 tnum">
             </div>
-            <p class="mt-1 text-xs text-sand-500">DP dibayar saat batch disetujui; sisanya saat semua PO siap kirim. Kosongkan untuk bayar penuh di muka.</p>
-            @error('dp_persen') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            <p class="mt-1 text-xs text-sand-500">Jumlah (Rp) yang ditagih ke brand di muka saat batch disetujui; sisanya saat semua PO siap kirim. Harus lebih kecil dari total tagihan. Kosongkan untuk bayar penuh di muka.</p>
+            @error('dp_nominal') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
         </div>
 
         {{-- Deposit tidak lagi diinput per batch: modal produksi terjadi sekali di awal kerja

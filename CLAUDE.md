@@ -66,8 +66,13 @@ Empat peran (`App\Enums\Role`, kolom `users.role`):
      (`bayarDiferdCash`), VendorLedger tipe `cash` + `bukti_transfer`. Bertahap: **DP-modal dulu,
      sisa-modal saat semua PO siap kirim**. `saldo` cash = modal yang belum dibayar
      (`cashStatus['diferd_sisa']`).
-   - **Down payment (DP) — hanya cash.** `batches.dp_persen` (1–99). Saat disetujui terbit
-     **invoice DP%**. Invoice **pelunasan** terbit **SETELAH TM TERIMA barang** (semua PO `terkirim`),
+   - **Down payment (DP) — hanya cash.** DP diisi **NOMINAL Rp** (`batches.dp_nominal`, diubah
+     27 Jul 2026 dari persen; kolom `dp_persen` ditinggalkan/tak dipakai). Nominal = jumlah yang
+     **ditagih ke brand** (sisi tagihan/tm420); sisi **Diferd (modal) proporsional** (rasio
+     DP/total tagihan) supaya fee 420F konsisten. `isCashDP()` = cash & `dp_nominal>0`. Batas
+     **DP < total** dicek saat **approval** (total baru ada setelah PO diisi) — `BatchController::approve`
+     menolak bila `dp_nominal ≥ total tagihan`. Saat disetujui terbit **invoice DP** (nominal).
+     Invoice **pelunasan** terbit **SETELAH TM TERIMA barang** (semua PO `terkirim`),
      `terbitSisaCash` → nilainya **sisa − reject** (`sisaCashNetReject`). `cash_dibayar` true saat
      **kedua** invoice lunas. Sisi Diferd bertahap (DP-modal → sisa-modal, sisa-modal juga **net
      reject**). Reject di batch DP **TIDAK** lewat refund — otomatis dipotong dari pelunasan (TM &
