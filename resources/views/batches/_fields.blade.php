@@ -67,7 +67,7 @@
             <label for="dp_nominal" class="block text-sm font-medium text-sand-700">Down payment — nominal (opsional)</label>
             <div class="mt-1 relative">
                 <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-sand-400">Rp</span>
-                <input type="number" name="dp_nominal" id="dp_nominal" min="1" step="1000"
+                <input type="number" name="dp_nominal" id="dp_nominal" min="1" step="1"
                        value="{{ old('dp_nominal', $batch->dp_nominal) }}" placeholder="mis. 5000000"
                        class="block w-full rounded-lg border-sand-300 pl-9 focus:border-brand-600 focus:ring-brand-600 tnum">
             </div>
