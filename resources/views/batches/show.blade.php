@@ -2,10 +2,11 @@
     @php
         $isAdmin = auth()->user()->isAdmin();
         $canStatus = $isAdmin || auth()->user()->role === \App\Enums\Role::Diferd;
-        // TM420 menyusun daftar artikel selama batch belum disetujui — justru itu yang direview
-        // 420F. Setelah disetujui, daftar dibekukan supaya persetujuannya berarti.
+        // TM420 & VOOJAH menyusun daftar artikel selama batch belum disetujui — justru itu yang
+        // direview 420F. Setelah disetujui, daftar dibekukan supaya persetujuannya berarti.
+        // (VOOJAH wajib disertakan — paritas brand; controller `pastikanBolehKelola` sudah mengizinkannya.)
         $bolehKelolaPo = $isAdmin
-            || (auth()->user()->role === \App\Enums\Role::Tm420 && $batch->status->belumDisetujui());
+            || (in_array(auth()->user()->role, [\App\Enums\Role::Tm420, \App\Enums\Role::Voojah], true) && $batch->status->belumDisetujui());
     @endphp
 
     <x-slot name="header">

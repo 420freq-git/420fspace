@@ -78,7 +78,7 @@
                     <p class="mt-1 text-2xl font-semibold tnum {{ $totalReject > 0 ? 'text-red-800' : 'text-sand-900' }}">{{ number_format($totalReject, 0, ',', '.') }}</p>
                     <p class="mt-1 text-xs {{ $totalReject > 0 ? 'text-red-600' : 'text-sand-400' }}">reject produksi + kurang saat terima · ditanggung vendor</p>
                     @if ($totalRejectArsip > 0)
-                        @php $bolehLihatKerugian = in_array(auth()->user()->role, [\App\Enums\Role::Admin, \App\Enums\Role::Tm420], true); @endphp
+                        @php $bolehLihatKerugian = in_array(auth()->user()->role, [\App\Enums\Role::Admin, \App\Enums\Role::Tm420, \App\Enums\Role::Voojah], true); @endphp
                         <p class="mt-1 text-xs text-sand-400">
                             + {{ number_format($totalRejectArsip, 0, ',', '.') }} dari batch selesai
                             @if ($bolehLihatKerugian)
