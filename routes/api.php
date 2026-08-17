@@ -11,4 +11,5 @@ Route::prefix('v1')->middleware('erp.token')->group(function () {
     Route::get('/ping', [IntegrasiProduksiController::class, 'ping']);
     Route::get('/produksi/komisi-diferd', [IntegrasiProduksiController::class, 'komisiDiferd']);
     Route::get('/produksi/penarikan-diferd', [IntegrasiProduksiController::class, 'penarikanDiferd']);
+    Route::get('/produk', [IntegrasiProduksiController::class, 'produk']);
 });

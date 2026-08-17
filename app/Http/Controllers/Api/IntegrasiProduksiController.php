@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Penarikan;
+use App\Models\Product;
 use App\Models\Sale;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,29 @@ class IntegrasiProduksiController extends Controller
     public function ping(): JsonResponse
     {
         return $this->ok(['app' => '420Frequency', 'server_time' => now()->toIso8601String()]);
+    }
+
+    /**
+     * Katalog produk brand milik sendiri (VOOJAH & 420F) untuk disinkron ke ERP.
+     * ERP memetakan brand via prefix SKU (VOO- → voojah, 420- → 420f) & mengisi harga jualnya
+     * sendiri (harga jual marketplace tidak ada di app produksi).
+     */
+    public function produk(Request $request): JsonResponse
+    {
+        $rows = Product::query()
+            ->whereHas('brand', fn ($b) => $b->where('tipe', 'milik_sendiri'))
+            ->with('brand:id,kode,nama')
+            ->orderBy('sku_induk')
+            ->get()
+            ->map(fn (Product $p) => [
+                'prod_id' => $p->id,
+                'sku' => $p->sku_induk,
+                'nama' => $p->nama_artikel,
+                'brand_kode' => $p->brand?->kode,
+                'aktif' => (bool) $p->aktif,
+            ]);
+
+        return $this->ok($rows, $rows->count().' produk');
     }
 
     /**
