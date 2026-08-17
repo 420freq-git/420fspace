@@ -37,6 +37,8 @@
         ['title' => 'Penjualan', 'items' => [
             ['label' => 'Pesanan', 'route' => 'orders.index', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
              'icon' => 'M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12A2.25 2.25 0 0118.489 21H5.511a2.25 2.25 0 01-2.24-2.493l1.263-12A2.25 2.25 0 016.772 6h10.456a2.25 2.25 0 012.24 2.507z'],
+            ['label' => 'Tarik dari ERP', 'route' => 'orders.tarik-erp.form', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
+             'icon' => 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
             ['label' => 'Monitoring cek', 'route' => 'monitoring.cek', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],
              'icon' => 'm21 21-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z'],
             ['label' => 'Barang kembali', 'route' => 'monitoring.kembali', 'ready' => true, 'roles' => [Role::Admin, Role::Tm420, Role::Voojah],

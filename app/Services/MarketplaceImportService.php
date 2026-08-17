@@ -95,6 +95,64 @@ class MarketplaceImportService
     }
 
     /**
+     * Import pesanan dari data ERP 420F (arah balik: file diunggah di ERP, produksi menariknya).
+     * Memakai ulang alokasi stok & dedupe nomor_pesanan yang sama dengan import file — jadi
+     * tarik ulang aman (pesanan yang nomornya sudah ada dilewati). Tiap item ERP membawa SKU
+     * level ukuran (sku_asli) untuk dicocokkan ke ProductSize.
+     *
+     * @param  array  $pesananList  daftar pesanan: [{no_pesanan, marketplace, tanggal, items:[{sku, qty}]}]
+     */
+    public function importDariErp(array $pesananList): array
+    {
+        $skuMap = $this->skuMap();
+        $mpMap = ['tiktok' => 'tiktokshop', 'tiktokshop' => 'tiktokshop', 'shopee' => 'shopee', 'whatsapp' => 'whatsapp', 'web' => 'web'];
+
+        $summary = [
+            'sumber' => 'ERP 420F', 'pesanan_diterima' => count($pesananList),
+            'imported_orders' => 0, 'imported_items' => 0,
+            'skip_stok0' => 0, 'skip_order_stok0' => 0, 'melebihi_stok' => 0,
+            'skip_dibatalkan' => 0, 'skip_sudah_ada' => 0, 'skip_sku_tak_dikenal' => 0,
+            'sku_tak_dikenal' => [],
+        ];
+
+        foreach ($pesananList as $p) {
+            $nomor = trim((string) ($p['no_pesanan'] ?? ''));
+            if ($nomor === '') {
+                continue;
+            }
+            $marketplace = $mpMap[strtolower((string) ($p['marketplace'] ?? ''))] ?? 'web';
+            $tanggal = $this->parseDate((string) ($p['tanggal'] ?? '')) ?? now();
+
+            $lines = [];
+            foreach ($p['items'] ?? [] as $it) {
+                $sku = strtoupper(trim((string) ($it['sku'] ?? '')));
+                if ($sku === '' || ! $skuMap->has($sku)) {
+                    $summary['skip_sku_tak_dikenal']++;
+                    if ($sku !== '') {
+                        $summary['sku_tak_dikenal'][$sku] = true;
+                    }
+
+                    continue;
+                }
+                $lines[] = [
+                    'size' => $skuMap->get($sku),
+                    'qty' => max(1, (int) ($it['qty'] ?? 1)),
+                    'resi' => null,
+                    'tanggal' => $tanggal,
+                ];
+            }
+
+            if ($lines) {
+                $this->createOrder($nomor, $marketplace, $lines, $summary);
+            }
+        }
+
+        $summary['sku_tak_dikenal'] = array_slice(array_keys($summary['sku_tak_dikenal']), 0, 30);
+
+        return $summary;
+    }
+
+    /**
      * Satu pesanan marketplace bisa berisi produk >1 brand (mis. TM & VOOJAH dalam 1 keranjang).
      * Karena invariant "1 pesanan = 1 brand", pesanan campur DIPECAH otomatis jadi pesanan terpisah
      * per brand. Nomor diberi sufiks kode brand agar unik (nomor_pesanan unik). Settlement tetap
