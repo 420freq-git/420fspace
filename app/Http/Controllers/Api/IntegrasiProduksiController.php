@@ -29,18 +29,30 @@ class IntegrasiProduksiController extends Controller
      */
     public function produk(Request $request): JsonResponse
     {
+        $stock = app(\App\Services\StockService::class);
+
         $rows = Product::query()
             ->whereHas('brand', fn ($b) => $b->where('tipe', 'milik_sendiri'))
-            ->with('brand:id,kode,nama')
+            ->with('brand:id,kode,nama', 'sizes')
             ->orderBy('sku_induk')
             ->get()
-            ->map(fn (Product $p) => [
-                'prod_id' => $p->id,
-                'sku' => $p->sku_induk,
-                'nama' => $p->nama_artikel,
-                'brand_kode' => $p->brand?->kode,
-                'aktif' => (bool) $p->aktif,
-            ]);
+            ->map(function (Product $p) use ($stock) {
+                $perUkuran = [];
+                foreach ($p->sizes as $s) {
+                    $uk = $s->ukuran->value;
+                    $perUkuran[$uk] = max(0, $stock->availableTotal($p->brand_id, $p->id, $uk));
+                }
+
+                return [
+                    'prod_id' => $p->id,
+                    'sku' => $p->sku_induk,
+                    'nama' => $p->nama_artikel,
+                    'brand_kode' => $p->brand?->kode,
+                    'aktif' => (bool) $p->aktif,
+                    'stok' => array_sum($perUkuran),          // total stok jual tersedia
+                    'stok_ukuran' => $perUkuran,              // rincian per ukuran
+                ];
+            });
 
         return $this->ok($rows, $rows->count().' produk');
     }
