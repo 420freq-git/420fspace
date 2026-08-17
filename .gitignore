@@ -33,3 +33,6 @@ Thumbs.db
 # Skrip lokal per-perangkat (path PHP Laragon spesifik; jangan ikut ke server)
 /jalankan-lokal.bat
 /.env.dev-backup
+
+# Arsip storage besar (jangan commit)
+/products-storage.zip
