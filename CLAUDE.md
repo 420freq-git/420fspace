@@ -256,6 +256,11 @@ tetap berstatus `aktif` (status ≠ progres produksi).
   **Rekomendasi produksi ulang**, **Rapor per artikel**, **Analisis per channel**.
 - **Notifikasi WhatsApp** (Fonnte): command `app:kirim-reminder` (jadwal harian). Perlu
   `FONNTE_TOKEN` di `.env`; tanpa itu hanya nulis log (aman).
+- **API integrasi BACA read-only** (`routes/api.php`, token statis Bearer via `erp.token`):
+  `/api/v1/*` untuk **ERP 420F** (`ERP_INTEGRASI_TOKEN`) dan `/api/tm420/*` untuk **ERP TM420**
+  (`ERP_TM_INTEGRASI_TOKEN`, **token terpisah**). Kontrak & aturan penagihan (pengakuan saat cair,
+  cut-off, `biaya_produksi` null = lewati, hanya SKU TM420) di **`docs/API-INTEGRASI-TM.md`**.
+  `kode_sku` bersama = `sku_turunan` (per ukuran). Sumber kebenaran tetap di app; ERP hanya baca.
 - **PDF**: Master PO (`batches.pdf`), Invoice, Surat jalan — dompdf. Mockup/desain di PDF: upload
   ideal **Mockup 1400×800**, **Desain 1150×800** (landscape) agar penuh.
   - **Master PO = SATU HALAMAN per PO** (dikunci 25 Jul 2026). Bagian "Rincian ukuran" cuma kolom

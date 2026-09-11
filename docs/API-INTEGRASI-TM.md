@@ -185,3 +185,46 @@ Bila ERP juga melacak retur: kirim status `retur` (barang balik) atau kondisi di
 
 Yang harus disepakati dulu dengan tim ERP TM: **skema JSON final**, **SKU sebagai kunci**, dan
 **mekanisme penerbitan/rotasi token**.
+
+---
+
+## 10. Endpoint BACA untuk ERP TM420 (SUDAH DIBANGUN — 11 Sep 2026)
+
+Token **TERPISAH** dari ERP 420F (`ERP_TM_INTEGRASI_TOKEN`, middleware `erp.token:tm`). Read-only.
+
+### `GET /api/tm420/produksi-berjalan`
+Produksi TM420 yang **sedang berjalan** (batch `aktif`, PO belum `terkirim`) — informasi "apa yang
+akan datang" untuk gudang TM. **Bukan stok, tak menerbitkan kewajiban** (lihat batas di bawah).
+
+Per baris:
+| field | arti |
+|---|---|
+| `nomor_request` | nomor PO (satu artikel). **Beberapa baris berbagi nomor ini** (satu per ukuran). |
+| `tanggal_request` | tanggal order batch |
+| `status` | tahap produksi PO (`belanja_bahan`…`siap_kirim`) |
+| `kode_sku` | **`sku_turunan` (per ukuran)** — kunci SKU bersama, sama dgn `/orders` & daftar ongkos |
+| `qty_dipesan` | qty rencana ukuran itu (PoSizeItem) |
+| `qty_selesai` | 0 sebelum `siap_kirim`; = `qty_dipesan` setelahnya (**penyelesaian dilacak per-PO, bukan per-ukuran**) |
+| `qty_dikirim` | qty sudah masuk surat jalan (per ukuran) |
+| `biaya_produksi_satuan` | ongkos disepakati = `hargaTagihan` (TM420 → tm420, dgn markup 420F). **Acuan saja.** |
+| `estimasi_selesai` | `deadline_produksi` batch (bisa null) |
+
+**Batas yang dipegang (kontrak):**
+- **a.** Bukan dorongan stok. Penerimaan/lolos-reject **tetap diputuskan di ERP TM** (pihak
+  penerima), bukan di sini. Reject produksi ditanggung vendor.
+- **b.** Tak menerbitkan kewajiban apa pun (lihat §11).
+- **c. Pemetaan SKU:** produksi 420F terorganisir **per artikel (PO)**, dipecah **per ukuran**
+  memakai **`sku_turunan`** (mis. `TS-POG-M`). Ini kunci yang sama dengan endpoint order & daftar
+  ongkos. Bila kode di ERP TM berbeda, samakan sekarang.
+
+---
+
+## 11. Waktu pengakuan ongkos & cut-off penagihan (aturan TM, 10 Sep 2026)
+Untuk fitur **tarik penjualan → tagih ongkos produksi** (belum dibangun; catat di sini agar konsisten):
+- **Pengakuan saat SETTLEMENT CAIR**, bukan saat dikirim. Baris yang sudah dikirim tapi uangnya
+  belum turun **BELUM boleh ditagih**. (Selaras: `/penjualan` sudah `status=cair` sejak awal.)
+- **Cut-off:** `/penjualan` membawa `ringkas.cutoff_penagihan` & `ringkas.baris_sebelum_cutoff`.
+  Bila `baris_sebelum_cutoff` ≠ 0, periode itu **sudah diselesaikan di luar ERP** → **jangan tagih ulang**.
+- `biaya_produksi` bisa **null** (HPP belum terkunci) = **BUKAN nol** → **lewati**, tarik lagi periode
+  berikutnya (jangan terbitkan invoice Rp 0).
+- Penagihan **hanya untuk SKU brand TM420 (eksternal)**; VOOJAH/420F (milik sendiri) tak ditagih ke TM.
