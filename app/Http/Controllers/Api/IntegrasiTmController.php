@@ -6,9 +6,12 @@ use App\Enums\BrandType;
 use App\Enums\SizeTier;
 use App\Enums\TahapProduksi;
 use App\Http\Controllers\Controller;
+use App\Models\Pengiriman;
 use App\Models\PurchaseOrder;
 use App\Services\StockService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /**
  * Endpoint BACA read-only untuk ERP TM420 (dijaga middleware `erp.token:tm`, token TERPISAH).
@@ -24,6 +27,103 @@ use Illuminate\Http\JsonResponse;
  */
 class IntegrasiTmController extends Controller
 {
+    /**
+     * GET /api/tm420/pengiriman — surat jalan ke TM420, untuk dijadikan draft penerimaan di ERP TM.
+     *
+     * Parameter opsional `sejak` (Y-m-d) menyaring menurut `tanggal_kirim`; tanpa itu, 90 hari
+     * terakhir. Batasnya ada supaya satu permintaan tidak diam-diam menarik seluruh riwayat lalu
+     * jadi dasar penerimaan atas periode yang tidak dimaksud siapa pun.
+     *
+     * ## Yang dikirim, dan yang SENGAJA tidak
+     *
+     * Dikirim: nomor surat jalan, tanggal, kode SKU per ukuran, qty kirim, qty diterima menurut
+     * catatan sini, dan ongkos produksi satuan.
+     *
+     * TIDAK dikirim: keputusan lolos/reject. Penerimaan di sini mencatat apa yang PABRIK serahkan;
+     * penerimaan di ERP TM mencatat apa yang lolos periksa di gudang. Dua angka itu berbeda persis
+     * di hari yang penting — dan reject ditanggung vendor, jadi menyalin angka pabrik berarti TM
+     * membayar barang yang ia tolak sendiri. `qty_diterima` di sini informatif; ERP TM memakainya
+     * sebagai usulan, bukan keputusan.
+     *
+     * `nomor_sj` adalah kunci anti-dobel di sisi ERP TM — pola yang sama dengan nomor invoice
+     * pada buy out.
+     *
+     * VOOJAH dikecualikan, sama seperti `produksiBerjalan`. Barang titipan memang sampai juga ke
+     * gudang TM, tapi ia tidak punya harga beli sama sekali (HPP-nya nol, dan nol itu benar);
+     * mengirimkannya lewat pintu yang membawa `biaya_produksi_satuan` mengundang ERP mencatatnya
+     * sebagai pembelian. Kalau kelak dibutuhkan, ia perlu pintu sendiri yang tidak berharga.
+     */
+    public function pengiriman(Request $request): JsonResponse
+    {
+        $sejak = $request->query('sejak');
+        $sejak = $sejak ? Carbon::parse($sejak)->toDateString() : now()->subDays(90)->toDateString();
+
+        $daftar = Pengiriman::query()
+            ->whereDate('tanggal_kirim', '>=', $sejak)
+            ->whereHas('batch.brand', fn ($br) => $br->where('tipe', BrandType::Eksternal->value))
+            ->with([
+                'batch:id,nomor_batch,brand_id',
+                'items.product:id,brand_id,sku_induk,category_id',
+                'items.product.sizes:id,product_id,ukuran,sku_turunan',
+                'items.product.category.prices',
+            ])
+            ->orderBy('tanggal_kirim')->orderBy('id')
+            ->get();
+
+        $rows = [];
+
+        foreach ($daftar as $sj) {
+            $baris = [];
+
+            foreach ($sj->items as $it) {
+                $p = $it->product;
+
+                if (! $p) {
+                    continue;
+                }
+
+                $uk = $it->ukuran->value;
+                $sku = $p->sizes->firstWhere(fn ($s) => $s->ukuran->value === $uk)?->sku_turunan;
+
+                // Kode kosong TIDAK dikirim. Penerima tidak bisa membedakan "belum dipetakan"
+                // dari "kode kebetulan kosong", dan menebaknya adalah cara barang masuk ke SKU
+                // yang salah tanpa satu pun peringatan.
+                if (! $sku) {
+                    continue;
+                }
+
+                $baris[] = [
+                    'kode_sku' => $sku,
+                    'ukuran' => $uk,
+                    'qty_kirim' => (int) $it->qty,
+                    'qty_diterima' => $it->qty_diterima === null ? null : (int) $it->qty_diterima,
+                    'biaya_produksi_satuan' => $p->hargaTagihan(SizeTier::forUkuran($uk)),
+                ];
+            }
+
+            if (! $baris) {
+                continue;
+            }
+
+            $rows[] = [
+                'nomor_sj' => $sj->nomor_sj,
+                'nomor_batch' => $sj->batch?->nomor_batch,
+                'tanggal_kirim' => $sj->tanggal_kirim?->toDateString(),
+                'tanggal_diterima' => $sj->tgl_diterima?->toDateString(),
+                'status' => $sj->status,
+                'alasan_kurang_kirim' => $sj->alasan_kurang_kirim?->value,
+                'baris' => $baris,
+            ];
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => count($rows).' surat jalan sejak '.$sejak,
+            'data' => $rows,
+            'errors' => [],
+        ]);
+    }
+
     /**
      * GET /api/tm420/produksi-berjalan — produksi TM420 yang sedang berjalan (belum tiba penuh).
      * Cakupan: batch TM420 (brand eksternal) berstatus `aktif`, PO yang belum `terkirim`.

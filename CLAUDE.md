@@ -261,6 +261,9 @@ tetap berstatus `aktif` (status ≠ progres produksi).
   (`ERP_TM_INTEGRASI_TOKEN`, **token terpisah**). Kontrak & aturan penagihan (pengakuan saat cair,
   cut-off, `biaya_produksi` null = lewati, hanya SKU TM420) di **`docs/API-INTEGRASI-TM.md`**.
   `kode_sku` bersama = `sku_turunan` (per ukuran). Sumber kebenaran tetap di app; ERP hanya baca.
+  Endpoint TM: `/produksi-berjalan` (apa yang akan datang) dan **`/pengiriman`** (surat jalan →
+  draft penerimaan di ERP TM, 15 Sep 2026). Keputusan **lolos/reject tidak pernah menyeberang** —
+  itu milik gudang penerima, dan reject ditanggung vendor.
 - **PDF**: Master PO (`batches.pdf`), Invoice, Surat jalan — dompdf. Mockup/desain di PDF: upload
   ideal **Mockup 1400×800**, **Desain 1150×800** (landscape) agar penuh.
   - **Master PO = SATU HALAMAN per PO** (dikunci 25 Jul 2026). Bagian "Rincian ukuran" cuma kolom

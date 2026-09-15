@@ -21,4 +21,6 @@ Route::prefix('v1')->middleware('erp.token')->group(function () {
 */
 Route::prefix('tm420')->middleware('erp.token:tm')->group(function () {
     Route::get('/produksi-berjalan', [IntegrasiTmController::class, 'produksiBerjalan']);
+    // Surat jalan → ERP TM menjadikannya DRAFT penerimaan. Keputusan lolos/reject tetap di sana.
+    Route::get('/pengiriman', [IntegrasiTmController::class, 'pengiriman']);
 });

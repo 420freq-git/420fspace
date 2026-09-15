@@ -217,6 +217,36 @@ Per baris:
   memakai **`sku_turunan`** (mis. `TS-POG-M`). Ini kunci yang sama dengan endpoint order & daftar
   ongkos. Bila kode di ERP TM berbeda, samakan sekarang.
 
+### `GET /api/tm420/pengiriman`
+Surat jalan ke TM420 — dipakai ERP TM untuk membuat **draft penerimaan** tanpa mengetik ulang.
+Parameter opsional `sejak` (Y-m-d) menyaring `tanggal_kirim`; tanpa itu **90 hari terakhir**, supaya
+satu permintaan tidak diam-diam menarik seluruh riwayat lalu jadi dasar penerimaan atas periode yang
+tidak dimaksud siapa pun.
+
+Per surat jalan: `nomor_sj`, `nomor_batch`, `tanggal_kirim`, `tanggal_diterima`, `status`,
+`alasan_kurang_kirim`, dan `baris[]`.
+
+Per baris:
+| field | arti |
+|---|---|
+| `kode_sku` | **`sku_turunan` (per ukuran)** — kunci SKU bersama. Baris tanpa pemetaan **tidak dikirim**. |
+| `ukuran` | S…XXL |
+| `qty_kirim` | yang diserahkan pabrik |
+| `qty_diterima` | menurut catatan SINI. **Usulan bagi ERP TM, bukan keputusan** (bisa null). |
+| `biaya_produksi_satuan` | ongkos disepakati = `hargaTagihan` (tier `s_xl`/`xxl` — **XXL lebih mahal**) |
+
+**Batas yang dipegang (kontrak):**
+- **a. Keputusan lolos/reject TIDAK menyeberang.** Penerimaan di sini mencatat apa yang PABRIK
+  serahkan; penerimaan di ERP TM mencatat apa yang **lolos periksa** di gudang. Dua angka itu
+  berbeda persis di hari yang penting, dan **reject ditanggung vendor** — menyalin angka pabrik
+  berarti TM membayar barang yang ia tolak sendiri.
+- **b. `nomor_sj` = kunci anti-dobel** di sisi ERP TM (pola yang sama dengan nomor invoice buy out).
+- **c. VOOJAH dikecualikan**, sama seperti `/produksi-berjalan`. Barang titipan memang sampai juga
+  ke gudang TM, tapi ia **tidak punya harga beli sama sekali** (HPP-nya nol, dan nol itu benar);
+  mengirimkannya lewat pintu yang membawa `biaya_produksi_satuan` mengundang ERP mencatatnya sebagai
+  pembelian. Kalau kelak dibutuhkan, ia perlu pintu sendiri yang tidak berharga.
+- **d. Tetap bukan dorongan stok.** Stok fisik dihitung ERP TM sendiri — itu pengaman oversell-nya.
+
 ---
 
 ## 11. Waktu pengakuan ongkos & cut-off penagihan (aturan TM, 10 Sep 2026)
