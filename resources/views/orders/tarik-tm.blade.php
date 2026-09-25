@@ -22,8 +22,9 @@
             berarti satu penjualan tercatat dua kali.
         --}}
         <p class="text-sm text-sand-600">
-            Menarik penjualan <strong>brand TM420</strong> yang uangnya sudah cair di marketplace, untuk
-            artikel yang diproduksi di sistem ini. Pesanannya lalu bisa ditagihkan lewat
+            Menarik pesanan <strong>brand TM420</strong> untuk artikel yang diproduksi di sistem ini —
+            termasuk yang <strong>belum cair</strong>, supaya bisa dipantau sejak masuk. Statusnya ikut
+            diperbarui tiap kali ditarik, dan yang sudah cair bisa ditagihkan lewat
             <a href="{{ route('invoices.index') }}" class="text-brand-700 hover:underline">Invoice</a> seperti brand lain.
         </p>
 
@@ -55,8 +56,8 @@
                         <div class="text-lg font-bold text-sand-500">{{ $ringkas['import']['skip_sudah_ada'] }}</div>
                     </div>
                     <div class="rounded-lg bg-white p-3">
-                        <div class="text-sand-500">Ditandai cair</div>
-                        <div class="text-lg font-bold text-sand-900">{{ $ringkas['ditandai_cair'] }}</div>
+                        <div class="text-sand-500">Status diperbarui</div>
+                        <div class="text-lg font-bold text-sand-900">{{ $ringkas['status_diperbarui'] }}</div>
                     </div>
                     <div class="rounded-lg bg-white p-3">
                         <div class="text-sand-500">Bukan produksi kita</div>
@@ -118,8 +119,8 @@
             </div>
 
             <p class="text-xs text-sand-500">
-                Periodenya mengikuti <strong>tanggal cair</strong>, bukan tanggal pesanan — itulah yang
-                menentukan kapan sebuah penjualan boleh ditagihkan.
+                Yang sudah cair disaring menurut <strong>tanggal cair</strong> (itulah yang menentukan kapan
+                boleh ditagih); yang belum cair menurut <strong>tanggal pesanan</strong>.
             </p>
 
             <button class="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">

@@ -59,7 +59,15 @@ class TarikPenjualanTmService
      */
     public function jalankan(string $dari, string $sampai): array
     {
-        $balasan = $this->erp->penjualan($dari, $sampai);
+        /*
+         * SEMUA status, bukan hanya yang cair.
+         *
+         * Tagihan memang lahir dari yang cair, tapi pesanan yang belum cair
+         * tetap perlu terlihat — sama seperti pesanan VOOJAH. Tanpa itu, barang
+         * yang sudah keluar dari gudang TM tidak muncul di mana pun sampai
+         * uangnya turun, dan tidak ada yang bisa memantaunya.
+         */
+        $balasan = $this->erp->penjualan($dari, $sampai, status: 'semua');
         $baris = $balasan['baris'] ?? [];
         $cutoff = $balasan['ringkas']['cutoff_penagihan'] ?? null;
 
@@ -87,8 +95,14 @@ class TarikPenjualanTmService
             }
 
             $tglCair = (string) ($b['tgl_cair'] ?? '');
+            $cair = (bool) ($b['cair'] ?? ($tglCair !== ''));
 
-            if ($cutoff && $tglCair !== '' && $tglCair <= $cutoff) {
+            /*
+             * Cut-off hanya mengecualikan yang SUDAH cair: periode itu tagihannya
+             * sudah diselesaikan di luar sistem. Pesanan yang belum cair tidak
+             * punya urusan dengan cut-off — ia belum pernah ditagih siapa pun.
+             */
+            if ($cair && $cutoff && $tglCair !== '' && $tglCair <= $cutoff) {
                 $ringkas['sebelum_cutoff']++;
 
                 continue;
@@ -121,6 +135,8 @@ class TarikPenjualanTmService
                 'marketplace' => (string) ($b['pesanan']['platform'] ?? 'web'),
                 'tanggal' => (string) ($b['pesanan']['tanggal'] ?? $tglCair),
                 'tgl_cair' => $tglCair,
+                'cair' => $cair,
+                'status_erp' => (string) ($b['pesanan']['status'] ?? ''),
                 'items' => [],
             ];
 
@@ -131,14 +147,13 @@ class TarikPenjualanTmService
         $hasil = $this->importer->importDariErp(array_values($perPesanan));
 
         /*
-         * Pesanan yang ditarik di sini SUDAH cair — itu syarat masuknya. Mesin
-         * import membuat pesanan berstatus `dipesan` karena ia melayani jalur
-         * lain yang belum tentu cair, jadi statusnya dibereskan di sini.
-         *
-         * Tanpa ini pesanannya tidak akan pernah masuk `bisaDitagih()`, dan
-         * tagihan yang justru jadi alasan tarikan ini ada tidak pernah terbit.
+         * Status disamakan dengan ERP TM di SETIAP tarikan, bukan sekali saat
+         * dibuat. Pesanan yang tadinya belum cair akan cair belakangan, dan
+         * kalau statusnya tidak ikut bergerak ia tidak akan pernah masuk
+         * `bisaDitagih()` — tagihan yang jadi alasan tarikan ini ada tidak
+         * pernah terbit, tanpa satu pun galat.
          */
-        $ringkas['ditandai_cair'] = $this->tandaiCair($perPesanan);
+        $ringkas['status_diperbarui'] = $this->sinkronkanStatus($perPesanan);
 
         $ringkas['import'] = $hasil;
         $ringkas['sku_tak_dikenal'] = array_keys($ringkas['sku_tak_dikenal']);
@@ -193,31 +208,82 @@ class TarikPenjualanTmService
     }
 
     /**
+     * Samakan status pesanan di sini dengan status di ERP TM.
+     *
+     * Arahnya searah: status hanya boleh MAJU (dipesan → dikirim → lunas), dan
+     * batal/retur datang dari ERP TM apa adanya. Membiarkannya mundur berarti
+     * pesanan yang sudah ditagih bisa kembali jadi "belum cair" hanya karena
+     * satu tarikan ulang — dan tagihannya ikut kacau.
+     *
      * @param  array<string, array<string, mixed>>  $perPesanan
      */
-    private function tandaiCair(array $perPesanan): int
+    private function sinkronkanStatus(array $perPesanan): int
     {
         $n = 0;
 
         foreach ($perPesanan as $nomor => $p) {
-            $tanggal = $p['tgl_cair'] !== '' ? Carbon::parse($p['tgl_cair']) : now();
+            $tujuan = $this->statusTujuan($p);
+
+            if ($tujuan === null) {
+                continue;
+            }
 
             $pesanan = Order::where(function ($q) use ($nomor) {
                 $q->where('nomor_pesanan', $nomor)->orWhere('nomor_pesanan', 'like', $nomor.'-%');
             })->get();
 
             foreach ($pesanan as $o) {
-                // Retur & batal punya ceritanya sendiri; menimpanya jadi lunas
-                // berarti menagih barang yang justru kembali.
-                if (in_array($o->status->value, ['lunas', 'retur', 'batal'], true)) {
+                $sekarang = $o->status->value;
+
+                if ($sekarang === $tujuan) {
                     continue;
                 }
 
-                $o->update(['status' => 'lunas', 'tgl_cair' => $tanggal]);
+                // Batal & retur menang atas apa pun: keduanya menceritakan barang
+                // yang nasibnya berubah, bukan sekadar tahap yang belum sampai.
+                $paksa = in_array($tujuan, ['batal', 'retur'], true);
+
+                if (! $paksa && self::URUTAN[$tujuan] <= (self::URUTAN[$sekarang] ?? 0)) {
+                    continue;
+                }
+
+                $patch = ['status' => $tujuan];
+
+                if ($tujuan === 'lunas') {
+                    $patch['tgl_cair'] = $p['tgl_cair'] !== '' ? Carbon::parse($p['tgl_cair']) : now();
+                }
+
+                $o->update($patch);
                 $n++;
             }
         }
 
         return $n;
+    }
+
+    /** Urutan maju status; batal & retur di luar urutan ini (lihat `sinkronkanStatus`). */
+    private const URUTAN = ['dipesan' => 1, 'dikirim' => 2, 'lunas' => 3, 'retur' => 3, 'batal' => 3];
+
+    /**
+     * Status ERP TM → status di sini.
+     *
+     * `cair` menang atas status internal: uang yang sudah turun adalah fakta
+     * yang lebih menentukan daripada tahap pengirimannya.
+     *
+     * @param  array<string, mixed>  $pesanan
+     */
+    private function statusTujuan(array $pesanan): ?string
+    {
+        if ($pesanan['cair'] ?? false) {
+            return 'lunas';
+        }
+
+        return match ($pesanan['status_erp'] ?? '') {
+            'batal' => 'batal',
+            'menunggu_retur' => 'retur',
+            'dikirim', 'selesai' => 'dikirim',
+            'baru' => 'dipesan',
+            default => null,
+        };
     }
 }

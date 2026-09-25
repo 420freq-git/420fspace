@@ -22,26 +22,39 @@ class TarikPenjualanTmTest extends ErpTestCase
 
         config(['integrasi.tm_api_base_url' => 'https://erp.tm420.uji/api/420f',
             'integrasi.tm_api_token' => 'TOKEN-UJI']);
+
+        Http::fake(['*' => fn () => Http::response($this->balasan)]);
     }
 
-    /** Balasan ERP TM sesuai kontrak docs/API-420F.md §4.2. */
+    /** @var array<string, mixed> balasan ERP TM yang sedang berlaku */
+    private array $balasan = ['ok' => true, 'baris' => [], 'ringkas' => []];
+
+    /**
+     * Balasan ERP TM sesuai kontrak docs/API-420F.md §4.2.
+     *
+     * Fake-nya dipasang SEKALI di setUp dan membaca kotak ini, bukan
+     * mendaftarkan stub baru tiap kali: stub kedua untuk pola URL yang sama
+     * tidak menimpa yang pertama, jadi tarikan kedua akan membaca balasan lama
+     * — dan tes perpindahan status lulus/gagal karena alasan yang keliru.
+     */
     private function balas(array $baris, ?string $cutoff = null): void
     {
-        Http::fake(['*' => Http::response([
+        $this->balasan = [
             'ok' => true,
             'baris' => $baris,
             'ringkas' => ['jumlah_baris' => count($baris), 'cutoff_penagihan' => $cutoff],
-        ])]);
+        ];
     }
 
     /** @return array<string, mixed> */
-    private function baris(string $sku, int $qty, string $nomor = '260913ABC', string $tglCair = '2026-09-20', ?int $biaya = null): array
+    private function baris(string $sku, int $qty, string $nomor = '260913ABC', ?string $tglCair = '2026-09-20',
+        ?int $biaya = null, string $statusErp = 'selesai'): array
     {
         return [
             'pesanan' => ['nomor' => 'SH-'.$nomor, 'nomor_marketplace' => $nomor, 'toko' => 'TM420 Official Store',
-                'platform' => 'shopee', 'tanggal' => '2026-09-13', 'status' => 'selesai'],
+                'platform' => 'shopee', 'tanggal' => '2026-09-13', 'status' => $statusErp],
             'sku' => $sku, 'jenis_pasokan' => 'produksi_420f', 'qty' => $qty, 'qty_tagih' => $qty,
-            'cair' => true, 'tgl_cair' => $tglCair,
+            'cair' => $tglCair !== null, 'tgl_cair' => $tglCair,
             'biaya_produksi_satuan' => $biaya, 'nilai_tagihan' => $biaya ? $biaya * $qty : null,
         ];
     }
@@ -167,6 +180,86 @@ class TarikPenjualanTmTest extends ErpTestCase
         $r = $this->tarik();
 
         $this->assertSame(['TS-BELUM-ADA-L'], $r['sku_tak_dikenal']);
+    }
+
+    /**
+     * Pesanan yang belum cair tetap ditarik — supaya bisa dipantau sejak masuk,
+     * sama seperti pesanan VOOJAH. Tapi ia BELUM boleh ditagih.
+     */
+    public function test_pesanan_belum_cair_ikut_tertarik_tapi_belum_bisa_ditagih(): void
+    {
+        $batch = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($batch);
+        $this->balas([$this->baris($this->skuTm(), 1, '260920BARU', tglCair: null, statusErp: 'dikirim')]);
+
+        $this->tarik();
+
+        $order = Order::where('nomor_pesanan', '260920BARU')->first();
+        $this->assertNotNull($order, 'pesanan belum cair tetap masuk untuk dipantau');
+        $this->assertSame('dikirim', $order->status->value);
+        $this->assertNull($order->tgl_cair);
+        $this->assertSame(0, Order::bisaDitagih()->count(), 'belum cair belum boleh ditagih');
+    }
+
+    /** Begitu uangnya turun, tarikan berikutnya memindahkannya ke lunas. */
+    public function test_status_ikut_naik_saat_pesanan_cair(): void
+    {
+        $batch = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($batch);
+
+        $this->balas([$this->baris($this->skuTm(), 1, '260920BARU', tglCair: null, statusErp: 'dikirim')]);
+        $this->tarik();
+
+        $this->balas([$this->baris($this->skuTm(), 1, '260920BARU', tglCair: '2026-09-24')]);
+        $r = $this->tarik();
+
+        $order = Order::where('nomor_pesanan', '260920BARU')->first();
+        $this->assertSame('lunas', $order->status->value);
+        $this->assertSame('2026-09-24', $order->tgl_cair->toDateString());
+        $this->assertSame(1, $r['status_diperbarui']);
+        $this->assertSame(1, Order::bisaDitagih()->count());
+    }
+
+    /** Status tidak boleh mundur: yang sudah lunas tetap lunas walau ERP masih bilang dikirim. */
+    public function test_status_tidak_mundur(): void
+    {
+        $batch = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($batch);
+        $this->balas([$this->baris($this->skuTm(), 1, '260920BARU')]);
+        $this->tarik();
+
+        $this->balas([$this->baris($this->skuTm(), 1, '260920BARU', tglCair: null, statusErp: 'dikirim')]);
+        $this->tarik();
+
+        $this->assertSame('lunas', Order::where('nomor_pesanan', '260920BARU')->first()->status->value);
+    }
+
+    /** Pembatalan di ERP TM menang atas tahap mana pun — barangnya tidak jadi terjual. */
+    public function test_pesanan_batal_ikut_dibatalkan(): void
+    {
+        $batch = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($batch);
+        $this->balas([$this->baris($this->skuTm(), 1, '260920BATAL', tglCair: null, statusErp: 'dikirim')]);
+        $this->tarik();
+
+        $this->balas([$this->baris($this->skuTm(), 1, '260920BATAL', tglCair: null, statusErp: 'batal')]);
+        $this->tarik();
+
+        $this->assertSame('batal', Order::where('nomor_pesanan', '260920BATAL')->first()->status->value);
+    }
+
+    /** Cut-off hanya mengecualikan yang sudah cair; yang belum cair belum pernah ditagih siapa pun. */
+    public function test_cutoff_tidak_menyentuh_pesanan_yang_belum_cair(): void
+    {
+        $batch = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($batch);
+        $this->balas([$this->baris($this->skuTm(), 1, '260901BELUM', tglCair: null, statusErp: 'dikirim')],
+            cutoff: '2026-09-07');
+
+        $r = $this->tarik();
+
+        $this->assertSame(0, $r['sebelum_cutoff']);
+        $this->assertNotNull(Order::where('nomor_pesanan', '260901BELUM')->first());
     }
 
     public function test_tanpa_token_menolak_jalan(): void
