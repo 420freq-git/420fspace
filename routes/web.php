@@ -13,6 +13,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\TarikPenjualanTmController;
 use App\Http\Controllers\TarikPesananErpController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\MonitoringProduksiController;
@@ -94,6 +95,11 @@ Route::middleware('auth')->group(function () {
         Route::post('pesanan/settlement', [ImportController::class, 'settlementStore'])->name('orders.settlement.store');
         Route::get('pesanan/tarik-erp', [TarikPesananErpController::class, 'index'])->name('orders.tarik-erp.form');
         Route::post('pesanan/tarik-erp', [TarikPesananErpController::class, 'tarik'])->name('orders.tarik-erp.jalankan');
+
+        // Arah lain: penjualan brand TM420 ditarik dari ERP TM420 — dasar
+        // tagihan ongkos produksi. Lihat TarikPenjualanTmController.
+        Route::get('pesanan/tarik-tm', [TarikPenjualanTmController::class, 'index'])->name('orders.tarik-tm.form');
+        Route::post('pesanan/tarik-tm', [TarikPenjualanTmController::class, 'tarik'])->name('orders.tarik-tm.jalankan');
         Route::get('pesanan/monitoring', [MonitoringController::class, 'perluDicek'])->name('monitoring.cek');
         Route::post('pesanan/monitoring/{order}/dicek', [MonitoringController::class, 'sudahDicek'])->name('monitoring.dicek');
         Route::post('pesanan/monitoring/{order}/tolak', [MonitoringController::class, 'tolakRetur'])->name('monitoring.tolak');

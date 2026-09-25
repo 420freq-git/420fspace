@@ -19,4 +19,15 @@ return [
     */
     'erp_base_url' => rtrim((string) env('ERP_API_BASE_URL', 'http://127.0.0.1:8420/api/v1'), '/'),
     'erp_api_token' => env('ERP_API_TOKEN'),
+
+    /*
+    | Arah balik ke ERP TM420: produksi MENARIK penjualan TM atas barang yang
+    | dibuat di sistem ini — dasar tagihan ongkos produksi 420F ke TM.
+    |
+    | Token BERBEDA dari dua token di atas. Yang di atas menjaga pintu MASUK
+    | (ERP membaca dari sini); yang ini kunci untuk pintu KELUAR, dan nilainya
+    | dipegang ERP TM sebagai API_420F_PRODUKSI_TOKEN.
+    */
+    'tm_api_base_url' => rtrim((string) env('ERP_TM_API_BASE_URL', 'https://erp.tm420.id/api/420f'), '/'),
+    'tm_api_token' => env('ERP_TM_API_TOKEN'),
 ];
