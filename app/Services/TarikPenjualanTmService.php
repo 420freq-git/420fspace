@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\SizeTier;
-use App\Models\Brand;
 use App\Models\Order;
 use App\Models\ProductSize;
 use Illuminate\Support\Carbon;
@@ -21,14 +20,20 @@ use Illuminate\Support\Carbon;
  * TM420 punya 33 artikel dan 165 ukuran di katalog, tapi NOL pesanan. Artinya
  * tagihan ongkos produksinya tidak pernah bisa diterbitkan dari sini.
  *
- * ## Yang disaring, dan kenapa ketat
+ * ## Yang disaring, dan kenapa
  *
  * Token produksi di ERP TM berlingkup `produksi_420f` + `konsinyasi_420f` —
- * lebih luas dari yang boleh ditagihkan di sini, karena ERP TM tidak mencatat
- * siapa yang memproduksi barang titipan. Penyaringan akhirnya memang di sisi
- * kita, memakai katalog kita sendiri: hanya SKU milik brand TM420 yang punya
- * `sku_turunan`. Barang VOOJAH sengaja tidak ikut — ia sudah masuk lewat ERP
- * 420F, dan menariknya dua kali berarti satu penjualan tercatat dua kali.
+ * lebih luas dari yang perlu ditarik di sini, karena ERP TM tidak mencatat
+ * siapa yang memproduksi barang titipan. Penyaringan ada di sisi kita, memakai
+ * katalog kita sendiri: hanya SKU yang KITA produksi (punya `sku_turunan`)
+ * yang dipakai — baik TM420 (eksternal) MAUPUN VOOJAH (milik sendiri).
+ *
+ * VOOJAH ikut karena ia dijual lewat toko TikTok/Shopee milik TM, jadi
+ * penjualannya hanya diketahui ERP TM. Tanpa ditarik dari sini, hak Diferd atas
+ * VOOJAH yang terjual tidak akan pernah terbayar — persis celah yang dulu
+ * terjadi. Tagihannya tetap beda per brand (TM ber-markup, VOOJAH di harga
+ * Diferd / fee 420F = 0); pembedaan itu ditangani importer, bukan di sini.
+ * Tarik-ulang aman karena importer men-dedup per nomor pesanan.
  *
  * SKU yang tidak dikenali TIDAK dibuang diam-diam; ia dilaporkan supaya artikel
  * yang belum dipetakan kelihatan, bukan menghilang dari tagihan.
@@ -71,7 +76,7 @@ class TarikPenjualanTmService
         $baris = $balasan['baris'] ?? [];
         $cutoff = $balasan['ringkas']['cutoff_penagihan'] ?? null;
 
-        $milikKita = $this->skuMilikTm();
+        $milikKita = $this->skuProduksiKita();
 
         $ringkas = [
             'periode' => ['dari' => $dari, 'sampai' => $sampai],
@@ -162,16 +167,17 @@ class TarikPenjualanTmService
     }
 
     /**
-     * SKU brand TM420 yang punya kode — inilah "yang diproduksi di sistem ini".
+     * SKU yang kita produksi lewat Diferd — inilah "yang diproduksi di sistem
+     * ini". Mencakup TM420 (eksternal) dan VOOJAH (milik sendiri): keduanya laku
+     * di toko TM, keduanya perlu ditarik agar hak Diferd-nya terbayar. Barang
+     * titipan pihak lain (tanpa `sku_turunan` di katalog kita) tak akan cocok.
      *
      * @return \Illuminate\Support\Collection<string, ProductSize>
      */
-    private function skuMilikTm()
+    private function skuProduksiKita()
     {
-        $tm = Brand::where('tipe', \App\Enums\BrandType::Eksternal)->pluck('id');
-
         return ProductSize::with('product')
-            ->whereHas('product', fn ($q) => $q->whereIn('brand_id', $tm))
+            ->whereHas('product')
             ->whereNotNull('sku_turunan')->where('sku_turunan', '!=', '')
             ->get()
             ->keyBy(fn (ProductSize $s) => strtoupper(trim((string) $s->sku_turunan)));

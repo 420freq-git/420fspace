@@ -250,11 +250,17 @@ Per baris:
 ---
 
 ## 11. Waktu pengakuan ongkos & cut-off penagihan (aturan TM, 10 Sep 2026)
-Untuk fitur **tarik penjualan → tagih ongkos produksi** (belum dibangun; catat di sini agar konsisten):
+Untuk fitur **tarik penjualan → tagih ongkos produksi** (dibangun di `TarikPenjualanTmService`):
 - **Pengakuan saat SETTLEMENT CAIR**, bukan saat dikirim. Baris yang sudah dikirim tapi uangnya
   belum turun **BELUM boleh ditagih**. (Selaras: `/penjualan` sudah `status=cair` sejak awal.)
 - **Cut-off:** `/penjualan` membawa `ringkas.cutoff_penagihan` & `ringkas.baris_sebelum_cutoff`.
   Bila `baris_sebelum_cutoff` ≠ 0, periode itu **sudah diselesaikan di luar ERP** → **jangan tagih ulang**.
 - `biaya_produksi` bisa **null** (HPP belum terkunci) = **BUKAN nol** → **lewati**, tarik lagi periode
   berikutnya (jangan terbitkan invoice Rp 0).
-- Penagihan **hanya untuk SKU brand TM420 (eksternal)**; VOOJAH/420F (milik sendiri) tak ditagih ke TM.
+- **Ditarik ≠ ditagih ke TM.** Puller menarik **semua SKU yang kita produksi** — TM420 **dan**
+  VOOJAH — karena VOOJAH pun dijual lewat toko TikTok/Shopee milik TM, jadi penjualannya hanya
+  diketahui ERP TM; tanpa ditarik, hak Diferd atas VOOJAH yang terjual tak akan pernah terbayar.
+  Tapi **penagihan ke TM tetap hanya SKU TM420 (eksternal)**; VOOJAH (milik sendiri) ditagih
+  internal di harga Diferd (fee 420F = 0), bukan ke TM. Pembedaan per brand ada di importer.
+  🔴 **Jangan kembalikan filter brand di puller** — itu dulu celah yang membuat Diferd tak terbayar
+  untuk VOOJAH. Dikunci oleh `TarikPenjualanTmTest::test_penjualan_voojah_di_toko_tm_ikut_ditarik`.

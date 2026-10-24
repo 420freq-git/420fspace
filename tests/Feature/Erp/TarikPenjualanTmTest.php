@@ -105,11 +105,12 @@ class TarikPenjualanTmTest extends ErpTestCase
     }
 
     /**
-     * Barang titipan VOOJAH ikut terbawa lingkup token, tapi BUKAN urusan
-     * tagihan ini — ia sudah masuk lewat ERP 420F. Menariknya dua kali berarti
-     * satu penjualan tercatat dua kali.
+     * VOOJAH dijual lewat toko TikTok/Shopee milik TM, jadi penjualannya hanya
+     * diketahui ERP TM. Ia HARUS ikut tertarik — kalau tidak, hak Diferd atas
+     * VOOJAH yang terjual tak akan pernah terbayar. Tagihannya di harga Diferd
+     * (fee 420F = 0), beda dari TM yang ber-markup.
      */
-    public function test_sku_di_luar_brand_tm_dilewati(): void
+    public function test_penjualan_voojah_di_toko_tm_ikut_ditarik(): void
     {
         $batch = $this->batchAktif($this->produkVoojah, ['M' => 5]);
         $this->produksiTerima($batch);
@@ -118,9 +119,17 @@ class TarikPenjualanTmTest extends ErpTestCase
 
         $r = $this->tarik();
 
-        $this->assertSame(0, $r['dipakai']);
-        $this->assertSame(1, $r['bukan_produksi_kita']);
-        $this->assertSame(0, Order::count());
+        $this->assertSame(1, $r['dipakai'], 'penjualan VOOJAH di toko TM harus ikut ditarik');
+        $this->assertSame(0, $r['bukan_produksi_kita']);
+
+        $order = Order::where('nomor_pesanan', '260913ABC')->first();
+        $this->assertNotNull($order);
+        $this->assertSame($this->brandVoojah->id, $order->brand_id);
+        $this->assertSame('lunas', $order->status->value);
+
+        $sale = Sale::where('brand_id', $this->brandVoojah->id)->first();
+        $this->assertNotNull($sale);
+        $this->assertSame($sale->harga_diferd, $sale->harga_tm420, 'VOOJAH ditagih harga Diferd — fee 420F nol');
     }
 
     /** Periode yang tagihannya sudah diselesaikan di luar sistem tidak ditagih lagi. */
