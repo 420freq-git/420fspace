@@ -241,9 +241,11 @@ class ReportController extends Controller
                 $out[$ym] = ($out[$ym] ?? 0) + $tanda * (int) $total;
             }
         };
+        // toBase(): baca hasil agregat MENTAH. Lewat model, alias 'total' tertimpa accessor
+        // Invoice::getTotalAttribute (Σ pesanan + jumlah_manual tak ter-select) → selalu 0.
         $perBulan = fn ($q, string $kolomTgl, string $kolomNilai) => $q->where($kolomTgl, '>=', $since)
-            ->selectRaw("DATE_FORMAT({$kolomTgl},'%Y-%m') as ym, SUM({$kolomNilai}) as total")
-            ->groupBy('ym')->pluck('total', 'ym');
+            ->selectRaw("DATE_FORMAT({$kolomTgl},'%Y-%m') as ym, SUM({$kolomNilai}) as nilai")
+            ->groupBy('ym')->toBase()->pluck('nilai', 'ym');
 
         $tambah($perBulan(\App\Models\Invoice::where('jumlah_manual', '>', 0), 'tanggal_terbit', 'jumlah_manual'), 1);
         $tambah($perBulan(\App\Models\VendorLedger::where('tipe', 'buyout'), 'tanggal', 'jumlah'), -1);
