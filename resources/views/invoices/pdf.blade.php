@@ -57,12 +57,12 @@
                     <td>
                         {{ $o->nomor_pesanan }}
                         @foreach ($o->items as $it)
-                            <div class="muted" style="font-size:8px;">{{ $it->product->nama_artikel }} · {{ $it->ukuran->value }} × {{ $it->qty }}</div>
+                            <div class="muted" style="font-size:8px;">{{ $it->product->nama_artikel }} · {{ $it->ukuran->value }} × {{ $it->qty }}@if ($it->isDariBatchCash()) · batch cash (sudah dibayar, tidak ditagih)@endif</div>
                         @endforeach
                     </td>
                     <td>{{ $o->tanggal_pesanan->translatedFormat('d M Y') }}</td>
                     <td>{{ $o->marketplace->label() }}</td>
-                    <td class="c">{{ $o->total_qty }}</td>
+                    <td class="c">{{ $o->qty_tagih }}</td>
                     <td class="r">{{ $fmt($o->nilai_tm) }}</td>
                 </tr>
             @endforeach

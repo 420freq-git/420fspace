@@ -56,4 +56,99 @@ class PenarikanTest extends ErpTestCase
         $m->setAccessible(true);
         $this->assertSame(600000, $m->invoke($pc)['hak']);
     }
+
+    /**
+     * Kejadian nyata (penarikan #1): nominal sebesar hak VOOJAH, tapi FIFO global menyerapnya ke
+     * batch TM yang lebih tua dulu. Dengan brand dipilih, hanya batch brand itu yang dibayar.
+     */
+    public function test_penarikan_untuk_satu_brand_tak_menyentuh_batch_brand_lain(): void
+    {
+        $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);       // lebih tua
+        $this->produksiTerima($bTm);
+        $this->jual($this->produkTm, 'M', 3);                         // hak TM 180.000
+
+        $bVj = $this->batchAktif($this->produkVoojah, ['M' => 5]);
+        $this->produksiTerima($bVj);
+        $this->jual($this->produkVoojah, 'M', 2);                     // hak VOOJAH 120.000
+
+        $pc = app(PenarikanController::class);
+        $pc->store($this->req($this->admin, ['jumlah' => 120000, 'brand_id' => $this->brandVoojah->id]));
+        $pen = Penarikan::latest('id')->first();
+        $this->assertSame($this->brandVoojah->id, $pen->brand_id);
+        $pc->approve($this->req($this->admin), $pen);
+
+        $this->assertSame(0, (int) VendorLedger::where('batch_id', $bTm->id)->where('penarikan_id', $pen->id)->sum('jumlah'), 'batch TM tak boleh tersentuh');
+        $this->assertSame(120000, (int) VendorLedger::where('batch_id', $bVj->id)->where('penarikan_id', $pen->id)->sum('jumlah'));
+        $this->assertSame('disetujui', $pen->fresh()->status);
+    }
+
+    public function test_penarikan_brand_tak_boleh_melebihi_sisa_hak_brand(): void
+    {
+        $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($bTm);
+        $this->jual($this->produkTm, 'M', 3);                         // hak TM 180.000
+        $bVj = $this->batchAktif($this->produkVoojah, ['M' => 5]);
+        $this->produksiTerima($bVj);
+        $this->jual($this->produkVoojah, 'M', 2);                     // hak VOOJAH 120.000
+
+        // Saldo global 300.000 cukup, tapi hak VOOJAH hanya 120.000.
+        $this->expectException(ValidationException::class);
+        app(PenarikanController::class)->store($this->req($this->admin, ['jumlah' => 150000, 'brand_id' => $this->brandVoojah->id]));
+    }
+
+    public function test_pdf_bukti_bayar_hanya_untuk_penarikan_cair(): void
+    {
+        $batch = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($batch);
+        $this->jual($this->produkTm, 'M', 3);
+
+        $pc = app(PenarikanController::class);
+        $pc->store($this->req($this->diferd, ['jumlah' => 100000]));
+        $pen = Penarikan::latest('id')->first();
+
+        try {
+            $pc->pdf($pen);
+            $this->fail('penarikan belum cair tak boleh punya bukti bayar');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(404, $e->getStatusCode());
+        }
+
+        $pc->approve($this->req($this->admin), $pen);
+        $res = $pc->pdf($pen->fresh());
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertStringStartsWith('%PDF', $res->getContent());
+    }
+
+    public function test_rincian_hak_per_brand_artikel_cocok_dengan_saldo(): void
+    {
+        $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($bTm);
+        $this->jual($this->produkTm, 'M', 3);      // TM / Kaos TM: 3 × 60.000 = 180.000
+
+        $bVj = $this->batchAktif($this->produkVoojah, ['M' => 5]);
+        $this->produksiTerima($bVj);
+        $this->jual($this->produkVoojah, 'M', 2);  // VOOJAH / Kaos VOOJAH: 2 × 60.000 = 120.000
+
+        // Tarik 200.000 → FIFO: batch TM (tertua) 180.000, batch VOOJAH 20.000.
+        $pc = app(PenarikanController::class);
+        $pc->store($this->req($this->diferd, ['jumlah' => 200000]));
+        $pc->approve($this->req($this->admin), Penarikan::latest('id')->first());
+
+        $rincian = (new \ReflectionMethod($pc, 'rincianHak'))->invoke($pc)['rincianBrand']->keyBy('nama');
+        $saldo = (new \ReflectionMethod($pc, 'saldo'))->invoke($pc);
+
+        $this->assertSame(180000, $rincian['TM420']['hak']);
+        $this->assertSame(180000, $rincian['TM420']['dibayar']);
+        $this->assertSame(0, $rincian['TM420']['sisa']);
+        $this->assertSame(3, (int) $rincian['TM420']['artikel']->first()->pcs);
+        $this->assertSame($this->produkTm->id, $rincian['TM420']['artikel']->first()->product_id);
+
+        $this->assertSame(120000, $rincian['VOOJAH']['hak']);
+        $this->assertSame(20000, $rincian['VOOJAH']['dibayar']);
+        $this->assertSame(100000, $rincian['VOOJAH']['sisa']);
+
+        // Total rincian harus sama dengan kartu saldo (angka kunci konsisten).
+        $this->assertSame($saldo['hak'], $rincian->sum('hak'));
+        $this->assertSame($saldo['dibayar'], $rincian->sum('dibayar'));
+    }
 }

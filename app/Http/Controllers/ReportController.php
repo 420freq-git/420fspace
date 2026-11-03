@@ -224,13 +224,46 @@ class ReportController extends Controller
             ->setPaper('a4', 'portrait')->stream('laporan-keuangan.pdf');
     }
 
+    /**
+     * Margin cash + buy-out per bulan — rumus SAMA dengan Fee 420F di Cashflow (CLAUDE.md §3:
+     * "jangan hitung ulang beda-beda per halaman"):
+     *   (invoice jumlah_manual: tagihan cash & buy-out ke TM, per tanggal terbit)
+     *   − (hak buy-out Diferd) − (modal cash dibayar ke Diferd, net refund)
+     *   + (refund cash yang diteruskan ke TM, bernilai negatif).
+     *
+     * @return array<string,int> 'Y-m' => nilai
+     */
+    private function feeCashBuyoutPerBulan(Carbon $since): array
+    {
+        $out = [];
+        $tambah = function ($rows, int $tanda) use (&$out) {
+            foreach ($rows as $ym => $total) {
+                $out[$ym] = ($out[$ym] ?? 0) + $tanda * (int) $total;
+            }
+        };
+        // toBase(): baca hasil agregat MENTAH. Lewat model, alias 'total' tertimpa accessor
+        // Invoice::getTotalAttribute (Σ pesanan + jumlah_manual tak ter-select) → selalu 0.
+        $perBulan = fn ($q, string $kolomTgl, string $kolomNilai) => $q->where($kolomTgl, '>=', $since)
+            ->selectRaw("DATE_FORMAT({$kolomTgl},'%Y-%m') as ym, SUM({$kolomNilai}) as nilai")
+            ->groupBy('ym')->toBase()->pluck('nilai', 'ym');
+
+        $tambah($perBulan(\App\Models\Invoice::where('jumlah_manual', '>', 0), 'tanggal_terbit', 'jumlah_manual'), 1);
+        $tambah($perBulan(\App\Models\VendorLedger::where('tipe', 'buyout'), 'tanggal', 'jumlah'), -1);
+        $tambah($perBulan(\App\Models\VendorLedger::where('tipe', 'cash'), 'tanggal', 'jumlah'), -1);
+        $tambah($perBulan(\App\Models\BrandLedger::where('keterangan', 'like', 'Cash batch%'), 'tanggal', 'jumlah'), 1);
+
+        return $out;
+    }
+
     private function keuanganData(Request $request): array
     {
         $user = $request->user();
         $brandId = (in_array($user->role, [Role::Tm420, Role::Voojah], true) && $user->brand_id) ? $user->brand_id : null;
         $since = now()->startOfMonth()->subMonths(11);
 
-        $raw = Sale::whereHas('order', fn ($o) => $o->where('status', 'lunas'))
+        // consignment(): penjualan dari batch cash sudah dibayar lewat invoice cash — bukan tagihan,
+        // bukan hak Diferd, bukan margin jual (margin cash dihitung terpisah di bawah).
+        $raw = Sale::consignment()->whereHas('order', fn ($o) => $o->where('status', 'lunas'))
             ->where('tanggal_terjual', '>=', $since)
             ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))
             ->selectRaw("DATE_FORMAT(tanggal_terjual,'%Y-%m') as ym, SUM(qty) as unit, "
@@ -238,16 +271,22 @@ class ReportController extends Controller
                 .'SUM(qty * (harga_tm420 - harga_diferd)) as fee')
             ->groupBy('ym')->get()->keyBy('ym');
 
-        $rows = collect(range(11, 0))->map(function ($i) use ($raw) {
+        $feeLain = $user->isAdmin() ? $this->feeCashBuyoutPerBulan($since) : [];
+
+        $rows = collect(range(11, 0))->map(function ($i) use ($raw, $feeLain) {
             $m = now()->startOfMonth()->subMonths($i);
             $r = $raw->get($m->format('Y-m'));
+            $feeJual = (int) ($r->fee ?? 0);
+            $feeCashBuyout = (int) ($feeLain[$m->format('Y-m')] ?? 0);
 
             return [
                 'bulan' => $m,
                 'unit' => (int) ($r->unit ?? 0),
                 'nilai_tm' => (int) ($r->nilai_tm ?? 0),
                 'hak_diferd' => (int) ($r->hak_diferd ?? 0),
-                'fee' => (int) ($r->fee ?? 0),
+                'fee_jual' => $feeJual,
+                'fee_cash_buyout' => $feeCashBuyout,
+                'fee' => $feeJual + $feeCashBuyout,
             ];
         });
 
@@ -261,6 +300,8 @@ class ReportController extends Controller
                 'unit' => $rows->sum('unit'),
                 'nilai_tm' => $rows->sum('nilai_tm'),
                 'hak_diferd' => $rows->sum('hak_diferd'),
+                'fee_jual' => $rows->sum('fee_jual'),
+                'fee_cash_buyout' => $rows->sum('fee_cash_buyout'),
                 'fee' => $rows->sum('fee'),
             ],
         ];

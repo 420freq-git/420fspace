@@ -148,13 +148,16 @@ class SettlementService
     /** Hak Diferd dari barang batch ini yang sudah terjual (tanpa buy-out). */
     public function hakJual(int $batchId): int
     {
-        return (int) Sale::where('batch_id', $batchId)->sold()->sum(DB::raw('qty * harga_diferd'));
+        // consignment(): batch cash sudah dibayar di muka (ledger 'cash'). Tanpa filter ini penjualan
+        // dari batch cash (sudah diterima, invoice cash belum lunas) dianggap hak yang belum dibayar,
+        // sehingga rencanaAlokasi() mengalokasikan penarikan ke batch cash.
+        return (int) Sale::where('batch_id', $batchId)->sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
     }
 
     /** Fee 420F dari batch ini = margin penjualan lunas + margin buy-out (invoice TM − hak Diferd). */
     public function fee420f(int $batchId): int
     {
-        $jual = (int) Sale::where('batch_id', $batchId)
+        $jual = (int) Sale::where('batch_id', $batchId)->consignment()
             ->whereHas('order', fn ($o) => $o->where('status', 'lunas'))
             ->whereNotNull('harga_tm420')->sum(DB::raw('qty * (harga_tm420 - harga_diferd)'));
 
@@ -183,14 +186,20 @@ class SettlementService
      * DIBEKUKAN jadi baris ledger saat penarikan disetujui — supaya sisa per batch tidak bergeser
      * lagi kalau ada retur/penjualan susulan setelah batch dinyatakan lunas.
      *
+     * $brandId: bila diisi, hanya batch brand itu yang dibayar (penarikan yang ditujukan ke satu
+     * brand, mis. "bayar hak VOOJAH"). Null = global seperti semula.
+     *
      * @return array{alokasi: array<int,int>, sisa: int} batch_id => jumlah, + surplus tak terserap
      */
-    public function rencanaAlokasi(int $jumlah): array
+    public function rencanaAlokasi(int $jumlah, ?int $brandId = null): array
     {
         $sisa = $jumlah;
         $alokasi = [];
 
-        foreach (Batch::orderBy('tanggal_order')->orderBy('id')->get(['id']) as $b) {
+        $batches = Batch::when($brandId, fn ($q) => $q->where('brand_id', $brandId))
+            ->orderBy('tanggal_order')->orderBy('id')->get(['id']);
+
+        foreach ($batches as $b) {
             if ($sisa <= 0) {
                 break;
             }

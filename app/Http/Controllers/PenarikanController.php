@@ -18,12 +18,12 @@ class PenarikanController extends Controller
     public function index(Request $request)
     {
         $saldo = $this->saldo();
-        $riwayat = Penarikan::with('alokasi.batch')->latest('tanggal_ajuan')->latest('id')->get();
+        $riwayat = Penarikan::with(['alokasi.batch', 'brand'])->latest('tanggal_ajuan')->latest('id')->get();
 
         // Pratinjau pembagian untuk yang masih menunggu persetujuan (belum dibekukan).
         $rencana = [];
         foreach ($riwayat->where('status', 'diajukan') as $p) {
-            $r = $this->settlement->rencanaAlokasi((int) $p->jumlah);
+            $r = $this->settlement->rencanaAlokasi((int) $p->jumlah, $p->brand_id);
             $rencana[$p->id] = [
                 'baris' => Batch::whereIn('id', array_keys($r['alokasi']))->get()
                     ->mapWithKeys(fn ($b) => [$b->nomor_batch => $r['alokasi'][$b->id]]),
@@ -31,27 +31,114 @@ class PenarikanController extends Controller
             ];
         }
 
-        return view('penarikan.index', array_merge($saldo, [
+        $rincian = $this->rincianHak();
+
+        return view('penarikan.index', array_merge($saldo, $rincian, [
+            'pilihanBrand' => $this->tersediaPerBrand($rincian['rincianBrand']),
             'riwayat' => $riwayat,
             'rencana' => $rencana,
             'isAdmin' => $request->user()->isAdmin(),
         ]));
     }
 
-    /** Diferd (atau admin) mengajukan penarikan. */
+    /**
+     * Rincian hak Diferd per BRAND, dengan daftar ARTIKEL di dalamnya.
+     *
+     * Sumber sama persis dengan hakGlobal()/hakDibayar() supaya total cocok dengan kartu saldo:
+     * - hak artikel  = Sale sold+consignment (qty × harga_diferd), dikelompokkan per produk;
+     * - buy-out      = VendorLedger 'buyout' per brand (tingkat batch, tak punya artikel);
+     * - dibayar      = VendorLedger 'pembayaran' per brand (manual + hasil pembekuan penarikan).
+     *
+     * "Dibayar/sisa" sengaja HANYA per brand, tidak per artikel: penarikan dibekukan FIFO sampai
+     * tingkat batch saja, jadi pembagian per artikel tidak punya dasar data (akan jadi angka karangan).
+     */
+    private function rincianHak(): array
+    {
+        $artikel = Sale::sold()->consignment()
+            ->select('brand_id', 'product_id')
+            ->selectRaw('SUM(qty) as pcs, SUM(qty * harga_diferd) as hak')
+            ->groupBy('brand_id', 'product_id')
+            ->with(['brand:id,nama', 'product:id,nama_artikel,sku_induk'])
+            ->get();
+
+        $buyout = VendorLedger::where('tipe', 'buyout')
+            ->selectRaw('brand_id, SUM(jumlah) as total')->groupBy('brand_id')->pluck('total', 'brand_id');
+        $dibayar = VendorLedger::where('tipe', 'pembayaran')
+            ->selectRaw('brand_id, SUM(jumlah) as total')->groupBy('brand_id')->pluck('total', 'brand_id');
+
+        $brandIds = $artikel->pluck('brand_id')->merge($buyout->keys())->merge($dibayar->keys())->unique();
+        $brands = \App\Models\Brand::whereIn('id', $brandIds)->orderBy('nama')->get(['id', 'nama']);
+
+        $perBrand = $brands->map(function ($b) use ($artikel, $buyout, $dibayar) {
+            $items = $artikel->where('brand_id', $b->id)->sortByDesc('hak')->values();
+            $hakJual = (int) $items->sum('hak');
+            $bo = (int) ($buyout[$b->id] ?? 0);
+            $bayar = (int) ($dibayar[$b->id] ?? 0);
+
+            return [
+                'id' => $b->id,
+                'nama' => $b->nama,
+                'artikel' => $items,
+                'pcs' => (int) $items->sum('pcs'),
+                'hak_jual' => $hakJual,
+                'buyout' => $bo,
+                'hak' => $hakJual + $bo,
+                'dibayar' => $bayar,
+                'sisa' => $hakJual + $bo - $bayar,
+            ];
+        })->filter(fn ($r) => $r['hak'] !== 0 || $r['dibayar'] !== 0)->values();
+
+        return [
+            'rincianBrand' => $perBrand,
+            // Penarikan cair yang tak terserap batch mana pun → tak punya brand.
+            'belumTeralokasi' => $this->settlement->penarikanBelumTeralokasi(),
+        ];
+    }
+
+    /**
+     * Sisa hak yang masih bisa ditarik per brand = hak − dibayar − penarikan brand itu yang masih
+     * menunggu. Penarikan global yang menunggu tidak dikurangkan di sini (brand mana yang akan ia
+     * serap baru pasti saat disetujui) — batas global tetap dijaga oleh saldo()['tersedia'].
+     *
+     * @return array<int, array{nama:string, tersedia:int}> brand_id => …
+     */
+    private function tersediaPerBrand($rincianBrand): array
+    {
+        $pending = Penarikan::where('status', 'diajukan')->whereNotNull('brand_id')
+            ->selectRaw('brand_id, SUM(jumlah) as nilai')->groupBy('brand_id')->toBase()->pluck('nilai', 'brand_id');
+
+        return collect($rincianBrand)->mapWithKeys(fn ($r) => [$r['id'] => [
+            'nama' => $r['nama'],
+            'tersedia' => $r['sisa'] - (int) ($pending[$r['id']] ?? 0),
+        ]])->all();
+    }
+
+    /** Diferd (atau admin) mengajukan penarikan — global, atau ditujukan ke satu brand. */
     public function store(Request $request)
     {
         $tersedia = $this->saldo()['tersedia'];
 
         $data = $request->validate([
             'jumlah' => ['required', 'integer', 'min:1', 'max:'.max(0, $tersedia)],
+            'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
             'catatan' => ['nullable', 'string', 'max:255'],
         ], [
             'jumlah.max' => 'Jumlah melebihi saldo tersedia ('.number_format($tersedia, 0, ',', '.').').',
         ]);
 
+        if (! empty($data['brand_id'])) {
+            $brand = $this->tersediaPerBrand($this->rincianHak()['rincianBrand'])[$data['brand_id']] ?? null;
+            $maks = max(0, $brand['tersedia'] ?? 0);
+            if ($data['jumlah'] > $maks) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'jumlah' => 'Jumlah melebihi sisa hak '.($brand['nama'] ?? 'brand ini').' ('.number_format($maks, 0, ',', '.').').',
+                ]);
+            }
+        }
+
         Penarikan::create([
             'jumlah' => $data['jumlah'],
+            'brand_id' => $data['brand_id'] ?? null,
             'status' => 'diajukan',
             'tanggal_ajuan' => now(),
             'catatan' => $data['catatan'] ?? null,
@@ -75,8 +162,16 @@ class PenarikanController extends Controller
             return back()->with('error', 'Saldo tidak cukup untuk menyetujui penarikan ini.');
         }
 
-        DB::transaction(function () use ($penarikan) {
-            $rencana = $this->settlement->rencanaAlokasi((int) $penarikan->jumlah);
+        $rencana = $this->settlement->rencanaAlokasi((int) $penarikan->jumlah, $penarikan->brand_id);
+
+        // Penarikan untuk satu brand harus terserap PENUH oleh batch brand itu. Jangan dilempar ke
+        // "tanpa batch": uang yang dimaksud untuk brand ini akan tercatat tak bertuan.
+        if ($penarikan->brand_id && $rencana['sisa'] > 0) {
+            return back()->with('error', 'Hak batch '.($penarikan->brand?->nama ?? 'brand ini').' hanya bisa menyerap Rp '
+                .number_format((int) $penarikan->jumlah - $rencana['sisa'], 0, ',', '.').'. Tolak lalu ajukan ulang dengan jumlah itu.');
+        }
+
+        DB::transaction(function () use ($penarikan, $rencana) {
             $batches = Batch::whereIn('id', array_keys($rencana['alokasi']))->get()->keyBy('id');
 
             foreach ($rencana['alokasi'] as $batchId => $jumlah) {
@@ -150,6 +245,50 @@ class PenarikanController extends Controller
         abort_unless($path && Storage::disk('public')->exists($path), 404, 'File tidak ditemukan.');
 
         return Storage::disk('public')->download($path);
+    }
+
+    /**
+     * PDF bukti pembayaran ke Diferd untuk satu penarikan yang sudah cair.
+     *
+     * Bagian "dibayar" berasal dari baris pembekuan (vendor_ledger dengan penarikan_id) — historis,
+     * tidak bergeser. Bagian artikel adalah rincian HAK batch tersebut (asal hak), BUKAN klaim
+     * artikel mana yang dibayar oleh transfer ini: pembekuan FIFO hanya sampai tingkat batch, jadi
+     * bila satu penarikan menutup sebagian hak batch, tidak ada dasar data untuk membaginya per artikel.
+     */
+    public function pdf(Penarikan $penarikan)
+    {
+        abort_unless($penarikan->status === 'disetujui', 404, 'Bukti hanya untuk penarikan yang sudah cair.');
+
+        $penarikan->load(['alokasi.batch.brand', 'brand']);
+
+        $batches = $penarikan->alokasi->filter(fn ($a) => $a->batch)->map(function ($a) {
+            $b = $a->batch;
+            $artikel = Sale::where('batch_id', $b->id)->sold()->consignment()
+                ->select('product_id')
+                ->selectRaw('SUM(qty) as pcs, SUM(qty * harga_diferd) as hak')
+                ->groupBy('product_id')->with('product:id,nama_artikel,sku_induk')
+                ->get()->sortByDesc('hak')->values();
+
+            return [
+                'batch' => $b,
+                'dibayar' => (int) $a->jumlah,
+                'artikel' => $artikel,
+                'buyout' => $this->settlement->buyout($b->id),
+                'hak_batch' => $this->settlement->kewajiban($b->id),
+            ];
+        })->values();
+
+        $data = [
+            'p' => $penarikan,
+            'batches' => $batches,
+            'perBrand' => $batches->groupBy(fn ($r) => $r['batch']->brand?->nama ?? '—')
+                ->map(fn ($g) => $g->sum('dibayar')),
+            'tanpaBatch' => max(0, (int) $penarikan->jumlah - (int) $penarikan->alokasi->sum('jumlah')),
+        ];
+
+        return \Barryvdh\DomPDF\Facade\Pdf::loadView('penarikan.pdf', $data)
+            ->setPaper('a4', 'portrait')
+            ->stream('bukti-bayar-diferd-'.$penarikan->id.'.pdf');
     }
 
     // ----- saldo global Diferd -----

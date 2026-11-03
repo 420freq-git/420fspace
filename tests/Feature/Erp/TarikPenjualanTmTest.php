@@ -166,6 +166,57 @@ class TarikPenjualanTmTest extends ErpTestCase
     }
 
     /**
+     * Kejadian nyata (INV.TM.11.26.03, pesanan 260925VF1MUXGW): pesanan campur TM+VOOJAH dulu
+     * tertarik sebagai TM-saja (filter lama membuang VOOJAH) → nomor '123'. Setelah VOOJAH ikut,
+     * pesanan yang sama terbaca campur → dipecah '123-TM' + '123-VJ'. Dedup per nomor persis
+     * tidak melihat '123', jadi barang TM tercatat dua kali dan tertagih dua kali.
+     */
+    public function test_pesanan_tm_saja_lalu_terbaca_campur_tidak_menggandakan_tm(): void
+    {
+        $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($bTm);
+        $bVj = $this->batchAktif($this->produkVoojah, ['M' => 5]);
+        $this->produksiTerima($bVj);
+        $skuVoojah = $this->produkVoojah->sizes()->where('ukuran', 'M')->value('sku_turunan');
+
+        $this->balas([$this->baris($this->skuTm(), 1, '260925CAMPUR')]);
+        $this->tarik();
+
+        $this->balas([
+            $this->baris($this->skuTm(), 1, '260925CAMPUR'),
+            $this->baris($skuVoojah, 1, '260925CAMPUR'),
+        ]);
+        $this->tarik();
+
+        $this->assertSame(1, Order::where('brand_id', $this->brandTm->id)->count(), 'barang TM tidak boleh tercatat dua kali');
+        $this->assertSame(1, (int) Sale::where('brand_id', $this->brandTm->id)->sum('qty'));
+        $this->assertSame(1, Order::where('brand_id', $this->brandVoojah->id)->count(), 'bagian VOOJAH yang baru terbaca tetap dibuat');
+        $this->assertSame(1, (int) Sale::where('brand_id', $this->brandVoojah->id)->sum('qty'));
+    }
+
+    /** Arah sebaliknya: sudah tercatat sebagai pecahan '-TM', lalu terbaca TM-saja. */
+    public function test_pesanan_pecahan_lalu_terbaca_tm_saja_tidak_menggandakan(): void
+    {
+        $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($bTm);
+        $bVj = $this->batchAktif($this->produkVoojah, ['M' => 5]);
+        $this->produksiTerima($bVj);
+        $skuVoojah = $this->produkVoojah->sizes()->where('ukuran', 'M')->value('sku_turunan');
+
+        $this->balas([
+            $this->baris($this->skuTm(), 1, '260925CAMPUR'),
+            $this->baris($skuVoojah, 1, '260925CAMPUR'),
+        ]);
+        $this->tarik();
+
+        $this->balas([$this->baris($this->skuTm(), 1, '260925CAMPUR')]);
+        $this->tarik();
+
+        $this->assertSame(1, Order::where('brand_id', $this->brandTm->id)->count());
+        $this->assertSame(2, Order::count());
+    }
+
+    /**
      * Harga kita vs catatan ERP TM: keduanya seharusnya sama, karena angka di
      * sana berasal dari surat jalan yang dikirim sistem ini.
      */
