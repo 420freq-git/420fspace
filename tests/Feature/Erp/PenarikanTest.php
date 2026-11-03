@@ -57,6 +57,29 @@ class PenarikanTest extends ErpTestCase
         $this->assertSame(600000, $m->invoke($pc)['hak']);
     }
 
+    public function test_pdf_bukti_bayar_hanya_untuk_penarikan_cair(): void
+    {
+        $batch = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($batch);
+        $this->jual($this->produkTm, 'M', 3);
+
+        $pc = app(PenarikanController::class);
+        $pc->store($this->req($this->diferd, ['jumlah' => 100000]));
+        $pen = Penarikan::latest('id')->first();
+
+        try {
+            $pc->pdf($pen);
+            $this->fail('penarikan belum cair tak boleh punya bukti bayar');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(404, $e->getStatusCode());
+        }
+
+        $pc->approve($this->req($this->admin), $pen);
+        $res = $pc->pdf($pen->fresh());
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertStringStartsWith('%PDF', $res->getContent());
+    }
+
     public function test_rincian_hak_per_brand_artikel_cocok_dengan_saldo(): void
     {
         $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);

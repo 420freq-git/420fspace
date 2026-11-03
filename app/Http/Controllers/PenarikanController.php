@@ -205,6 +205,50 @@ class PenarikanController extends Controller
         return Storage::disk('public')->download($path);
     }
 
+    /**
+     * PDF bukti pembayaran ke Diferd untuk satu penarikan yang sudah cair.
+     *
+     * Bagian "dibayar" berasal dari baris pembekuan (vendor_ledger dengan penarikan_id) — historis,
+     * tidak bergeser. Bagian artikel adalah rincian HAK batch tersebut (asal hak), BUKAN klaim
+     * artikel mana yang dibayar oleh transfer ini: pembekuan FIFO hanya sampai tingkat batch, jadi
+     * bila satu penarikan menutup sebagian hak batch, tidak ada dasar data untuk membaginya per artikel.
+     */
+    public function pdf(Penarikan $penarikan)
+    {
+        abort_unless($penarikan->status === 'disetujui', 404, 'Bukti hanya untuk penarikan yang sudah cair.');
+
+        $penarikan->load('alokasi.batch.brand');
+
+        $batches = $penarikan->alokasi->filter(fn ($a) => $a->batch)->map(function ($a) {
+            $b = $a->batch;
+            $artikel = Sale::where('batch_id', $b->id)->sold()->consignment()
+                ->select('product_id')
+                ->selectRaw('SUM(qty) as pcs, SUM(qty * harga_diferd) as hak')
+                ->groupBy('product_id')->with('product:id,nama_artikel,sku_induk')
+                ->get()->sortByDesc('hak')->values();
+
+            return [
+                'batch' => $b,
+                'dibayar' => (int) $a->jumlah,
+                'artikel' => $artikel,
+                'buyout' => $this->settlement->buyout($b->id),
+                'hak_batch' => $this->settlement->kewajiban($b->id),
+            ];
+        })->values();
+
+        $data = [
+            'p' => $penarikan,
+            'batches' => $batches,
+            'perBrand' => $batches->groupBy(fn ($r) => $r['batch']->brand?->nama ?? '—')
+                ->map(fn ($g) => $g->sum('dibayar')),
+            'tanpaBatch' => max(0, (int) $penarikan->jumlah - (int) $penarikan->alokasi->sum('jumlah')),
+        ];
+
+        return \Barryvdh\DomPDF\Facade\Pdf::loadView('penarikan.pdf', $data)
+            ->setPaper('a4', 'portrait')
+            ->stream('bukti-bayar-diferd-'.$penarikan->id.'.pdf');
+    }
+
     // ----- saldo global Diferd -----
 
     private function hakGlobal(): int

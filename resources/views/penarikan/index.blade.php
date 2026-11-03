@@ -175,6 +175,10 @@
                                     <td class="px-5 py-3 text-sand-500">{{ $p->catatan ?? '—' }}</td>
                                     <td class="px-5 py-3" x-data="{ open: false }">
                                         <div class="flex flex-col items-start gap-1 text-xs">
+                                            @if ($p->status === 'disetujui')
+                                                <a href="{{ route('penarikan.pdf', $p) }}" target="_blank" class="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>PDF bukti bayar</a>
+                                            @endif
                                             @if ($p->bukti_transfer)
                                                 <a href="{{ route('penarikan.bukti', [$p, 'transfer']) }}" class="inline-flex items-center gap-1 text-brand-700 hover:underline">
                                                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>Bukti transfer</a>
@@ -183,7 +187,7 @@
                                                 <a href="{{ route('penarikan.bukti', [$p, 'invoice']) }}" class="inline-flex items-center gap-1 text-brand-700 hover:underline">
                                                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>Invoice</a>
                                             @endif
-                                            @if (! $p->bukti_transfer && ! $p->bukti_invoice)
+                                            @if (! $p->bukti_transfer && ! $p->bukti_invoice && $p->status !== 'disetujui')
                                                 <span class="text-sand-300">belum ada</span>
                                             @endif
                                             {{-- Unggah bukti hanya untuk 420F; Diferd cukup melihat. --}}
