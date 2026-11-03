@@ -16,7 +16,7 @@
 
     <table class="cards">
         <tr>
-            <td style="width:34%"><div class="lbl">Dibayar ke</div><div class="val">Diferd</div></td>
+            <td style="width:34%"><div class="lbl">Dibayar ke</div><div class="val">Diferd</div><div class="lbl" style="margin-top:3px;">{{ $p->brand ? 'untuk hak '.$p->brand->nama : 'semua brand (batch tertua dulu)' }}</div></td>
             <td style="width:33%"><div class="lbl">Tanggal ajuan</div><div class="val">{{ $p->tanggal_ajuan->translatedFormat('d M Y') }}</div></td>
             <td style="width:33%"><div class="lbl">Jumlah dibayar</div><div class="val g">{{ $fmt($p->jumlah) }}</div></td>
         </tr>

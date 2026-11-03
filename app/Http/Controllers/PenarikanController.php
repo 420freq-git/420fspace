@@ -18,12 +18,12 @@ class PenarikanController extends Controller
     public function index(Request $request)
     {
         $saldo = $this->saldo();
-        $riwayat = Penarikan::with('alokasi.batch')->latest('tanggal_ajuan')->latest('id')->get();
+        $riwayat = Penarikan::with(['alokasi.batch', 'brand'])->latest('tanggal_ajuan')->latest('id')->get();
 
         // Pratinjau pembagian untuk yang masih menunggu persetujuan (belum dibekukan).
         $rencana = [];
         foreach ($riwayat->where('status', 'diajukan') as $p) {
-            $r = $this->settlement->rencanaAlokasi((int) $p->jumlah);
+            $r = $this->settlement->rencanaAlokasi((int) $p->jumlah, $p->brand_id);
             $rencana[$p->id] = [
                 'baris' => Batch::whereIn('id', array_keys($r['alokasi']))->get()
                     ->mapWithKeys(fn ($b) => [$b->nomor_batch => $r['alokasi'][$b->id]]),
@@ -31,7 +31,10 @@ class PenarikanController extends Controller
             ];
         }
 
-        return view('penarikan.index', array_merge($saldo, $this->rincianHak(), [
+        $rincian = $this->rincianHak();
+
+        return view('penarikan.index', array_merge($saldo, $rincian, [
+            'pilihanBrand' => $this->tersediaPerBrand($rincian['rincianBrand']),
             'riwayat' => $riwayat,
             'rencana' => $rencana,
             'isAdmin' => $request->user()->isAdmin(),
@@ -73,6 +76,7 @@ class PenarikanController extends Controller
             $bayar = (int) ($dibayar[$b->id] ?? 0);
 
             return [
+                'id' => $b->id,
                 'nama' => $b->nama,
                 'artikel' => $items,
                 'pcs' => (int) $items->sum('pcs'),
@@ -91,20 +95,50 @@ class PenarikanController extends Controller
         ];
     }
 
-    /** Diferd (atau admin) mengajukan penarikan. */
+    /**
+     * Sisa hak yang masih bisa ditarik per brand = hak − dibayar − penarikan brand itu yang masih
+     * menunggu. Penarikan global yang menunggu tidak dikurangkan di sini (brand mana yang akan ia
+     * serap baru pasti saat disetujui) — batas global tetap dijaga oleh saldo()['tersedia'].
+     *
+     * @return array<int, array{nama:string, tersedia:int}> brand_id => …
+     */
+    private function tersediaPerBrand($rincianBrand): array
+    {
+        $pending = Penarikan::where('status', 'diajukan')->whereNotNull('brand_id')
+            ->selectRaw('brand_id, SUM(jumlah) as nilai')->groupBy('brand_id')->toBase()->pluck('nilai', 'brand_id');
+
+        return collect($rincianBrand)->mapWithKeys(fn ($r) => [$r['id'] => [
+            'nama' => $r['nama'],
+            'tersedia' => $r['sisa'] - (int) ($pending[$r['id']] ?? 0),
+        ]])->all();
+    }
+
+    /** Diferd (atau admin) mengajukan penarikan — global, atau ditujukan ke satu brand. */
     public function store(Request $request)
     {
         $tersedia = $this->saldo()['tersedia'];
 
         $data = $request->validate([
             'jumlah' => ['required', 'integer', 'min:1', 'max:'.max(0, $tersedia)],
+            'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
             'catatan' => ['nullable', 'string', 'max:255'],
         ], [
             'jumlah.max' => 'Jumlah melebihi saldo tersedia ('.number_format($tersedia, 0, ',', '.').').',
         ]);
 
+        if (! empty($data['brand_id'])) {
+            $brand = $this->tersediaPerBrand($this->rincianHak()['rincianBrand'])[$data['brand_id']] ?? null;
+            $maks = max(0, $brand['tersedia'] ?? 0);
+            if ($data['jumlah'] > $maks) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'jumlah' => 'Jumlah melebihi sisa hak '.($brand['nama'] ?? 'brand ini').' ('.number_format($maks, 0, ',', '.').').',
+                ]);
+            }
+        }
+
         Penarikan::create([
             'jumlah' => $data['jumlah'],
+            'brand_id' => $data['brand_id'] ?? null,
             'status' => 'diajukan',
             'tanggal_ajuan' => now(),
             'catatan' => $data['catatan'] ?? null,
@@ -128,8 +162,16 @@ class PenarikanController extends Controller
             return back()->with('error', 'Saldo tidak cukup untuk menyetujui penarikan ini.');
         }
 
-        DB::transaction(function () use ($penarikan) {
-            $rencana = $this->settlement->rencanaAlokasi((int) $penarikan->jumlah);
+        $rencana = $this->settlement->rencanaAlokasi((int) $penarikan->jumlah, $penarikan->brand_id);
+
+        // Penarikan untuk satu brand harus terserap PENUH oleh batch brand itu. Jangan dilempar ke
+        // "tanpa batch": uang yang dimaksud untuk brand ini akan tercatat tak bertuan.
+        if ($penarikan->brand_id && $rencana['sisa'] > 0) {
+            return back()->with('error', 'Hak batch '.($penarikan->brand?->nama ?? 'brand ini').' hanya bisa menyerap Rp '
+                .number_format((int) $penarikan->jumlah - $rencana['sisa'], 0, ',', '.').'. Tolak lalu ajukan ulang dengan jumlah itu.');
+        }
+
+        DB::transaction(function () use ($penarikan, $rencana) {
             $batches = Batch::whereIn('id', array_keys($rencana['alokasi']))->get()->keyBy('id');
 
             foreach ($rencana['alokasi'] as $batchId => $jumlah) {
@@ -217,7 +259,7 @@ class PenarikanController extends Controller
     {
         abort_unless($penarikan->status === 'disetujui', 404, 'Bukti hanya untuk penarikan yang sudah cair.');
 
-        $penarikan->load('alokasi.batch.brand');
+        $penarikan->load(['alokasi.batch.brand', 'brand']);
 
         $batches = $penarikan->alokasi->filter(fn ($a) => $a->batch)->map(function ($a) {
             $b = $a->batch;

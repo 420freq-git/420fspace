@@ -57,6 +57,45 @@ class PenarikanTest extends ErpTestCase
         $this->assertSame(600000, $m->invoke($pc)['hak']);
     }
 
+    /**
+     * Kejadian nyata (penarikan #1): nominal sebesar hak VOOJAH, tapi FIFO global menyerapnya ke
+     * batch TM yang lebih tua dulu. Dengan brand dipilih, hanya batch brand itu yang dibayar.
+     */
+    public function test_penarikan_untuk_satu_brand_tak_menyentuh_batch_brand_lain(): void
+    {
+        $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);       // lebih tua
+        $this->produksiTerima($bTm);
+        $this->jual($this->produkTm, 'M', 3);                         // hak TM 180.000
+
+        $bVj = $this->batchAktif($this->produkVoojah, ['M' => 5]);
+        $this->produksiTerima($bVj);
+        $this->jual($this->produkVoojah, 'M', 2);                     // hak VOOJAH 120.000
+
+        $pc = app(PenarikanController::class);
+        $pc->store($this->req($this->admin, ['jumlah' => 120000, 'brand_id' => $this->brandVoojah->id]));
+        $pen = Penarikan::latest('id')->first();
+        $this->assertSame($this->brandVoojah->id, $pen->brand_id);
+        $pc->approve($this->req($this->admin), $pen);
+
+        $this->assertSame(0, (int) VendorLedger::where('batch_id', $bTm->id)->where('penarikan_id', $pen->id)->sum('jumlah'), 'batch TM tak boleh tersentuh');
+        $this->assertSame(120000, (int) VendorLedger::where('batch_id', $bVj->id)->where('penarikan_id', $pen->id)->sum('jumlah'));
+        $this->assertSame('disetujui', $pen->fresh()->status);
+    }
+
+    public function test_penarikan_brand_tak_boleh_melebihi_sisa_hak_brand(): void
+    {
+        $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($bTm);
+        $this->jual($this->produkTm, 'M', 3);                         // hak TM 180.000
+        $bVj = $this->batchAktif($this->produkVoojah, ['M' => 5]);
+        $this->produksiTerima($bVj);
+        $this->jual($this->produkVoojah, 'M', 2);                     // hak VOOJAH 120.000
+
+        // Saldo global 300.000 cukup, tapi hak VOOJAH hanya 120.000.
+        $this->expectException(ValidationException::class);
+        app(PenarikanController::class)->store($this->req($this->admin, ['jumlah' => 150000, 'brand_id' => $this->brandVoojah->id]));
+    }
+
     public function test_pdf_bukti_bayar_hanya_untuk_penarikan_cair(): void
     {
         $batch = $this->batchAktif($this->produkTm, ['M' => 5]);

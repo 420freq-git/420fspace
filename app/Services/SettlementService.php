@@ -186,14 +186,20 @@ class SettlementService
      * DIBEKUKAN jadi baris ledger saat penarikan disetujui — supaya sisa per batch tidak bergeser
      * lagi kalau ada retur/penjualan susulan setelah batch dinyatakan lunas.
      *
+     * $brandId: bila diisi, hanya batch brand itu yang dibayar (penarikan yang ditujukan ke satu
+     * brand, mis. "bayar hak VOOJAH"). Null = global seperti semula.
+     *
      * @return array{alokasi: array<int,int>, sisa: int} batch_id => jumlah, + surplus tak terserap
      */
-    public function rencanaAlokasi(int $jumlah): array
+    public function rencanaAlokasi(int $jumlah, ?int $brandId = null): array
     {
         $sisa = $jumlah;
         $alokasi = [];
 
-        foreach (Batch::orderBy('tanggal_order')->orderBy('id')->get(['id']) as $b) {
+        $batches = Batch::when($brandId, fn ($q) => $q->where('brand_id', $brandId))
+            ->orderBy('tanggal_order')->orderBy('id')->get(['id']);
+
+        foreach ($batches as $b) {
             if ($sisa <= 0) {
                 break;
             }

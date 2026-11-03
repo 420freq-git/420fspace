@@ -5,9 +5,10 @@ namespace App\Models;
 use App\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['jumlah', 'status', 'tanggal_ajuan', 'tanggal_cair', 'catatan', 'bukti_transfer', 'bukti_invoice'])]
+#[Fillable(['jumlah', 'brand_id', 'status', 'tanggal_ajuan', 'tanggal_cair', 'catatan', 'bukti_transfer', 'bukti_invoice'])]
 class Penarikan extends Model
 {
     use Auditable;
@@ -18,6 +19,12 @@ class Penarikan extends Model
     public function alokasi(): HasMany
     {
         return $this->hasMany(VendorLedger::class);
+    }
+
+    /** Brand tujuan (opsional). Null = penarikan global, dibagi FIFO ke batch semua brand. */
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
     }
 
     public function auditLabel(): string

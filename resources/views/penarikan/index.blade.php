@@ -106,8 +106,18 @@
         @if ($tersedia > 0)
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-6">
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">{{ $isAdmin ? 'Catat penarikan' : 'Ajukan penarikan' }}</h2>
-                <form method="POST" action="{{ route('penarikan.store') }}" class="grid sm:grid-cols-4 gap-4 items-end">
+                <form method="POST" action="{{ route('penarikan.store') }}" class="grid sm:grid-cols-5 gap-4 items-end">
                     @csrf
+                    <div>
+                        <label class="block text-xs font-medium text-sand-600">Untuk brand</label>
+                        <select name="brand_id" class="mt-1 block w-full rounded-lg border-sand-300 text-sm focus:border-brand-600 focus:ring-brand-600">
+                            <option value="">Semua brand (batch tertua dulu)</option>
+                            @foreach ($pilihanBrand as $id => $b)
+                                <option value="{{ $id }}" @selected(old('brand_id') == $id) @disabled($b['tersedia'] <= 0)>{{ $b['nama'] }} — sisa {{ $fmt(max(0, $b['tersedia'])) }}</option>
+                            @endforeach
+                        </select>
+                        @error('brand_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
                     <div>
                         <label class="block text-xs font-medium text-sand-600">Jumlah</label>
                         <div class="mt-1 relative">
@@ -152,6 +162,7 @@
                                     <td class="px-5 py-3 text-sand-600 tnum">{{ $p->tanggal_ajuan->format('d/m/Y') }}</td>
                                     <td class="px-5 py-3 text-right">
                                         <div class="tnum font-medium text-sand-800">{{ $fmt($p->jumlah) }}</div>
+                                        <div class="text-[11px] {{ $p->brand ? 'text-brand-700' : 'text-sand-400' }}">{{ $p->brand ? 'untuk '.$p->brand->nama : 'semua brand' }}</div>
                                         @if ($p->status === 'disetujui' && $p->alokasi->isNotEmpty())
                                             <div class="mt-1 space-y-0.5 text-[11px] text-sand-400">
                                                 @foreach ($p->alokasi as $a)
