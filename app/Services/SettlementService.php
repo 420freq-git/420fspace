@@ -148,13 +148,16 @@ class SettlementService
     /** Hak Diferd dari barang batch ini yang sudah terjual (tanpa buy-out). */
     public function hakJual(int $batchId): int
     {
-        return (int) Sale::where('batch_id', $batchId)->sold()->sum(DB::raw('qty * harga_diferd'));
+        // consignment(): batch cash sudah dibayar di muka (ledger 'cash'). Tanpa filter ini penjualan
+        // dari batch cash (sudah diterima, invoice cash belum lunas) dianggap hak yang belum dibayar,
+        // sehingga rencanaAlokasi() mengalokasikan penarikan ke batch cash.
+        return (int) Sale::where('batch_id', $batchId)->sold()->consignment()->sum(DB::raw('qty * harga_diferd'));
     }
 
     /** Fee 420F dari batch ini = margin penjualan lunas + margin buy-out (invoice TM − hak Diferd). */
     public function fee420f(int $batchId): int
     {
-        $jual = (int) Sale::where('batch_id', $batchId)
+        $jual = (int) Sale::where('batch_id', $batchId)->consignment()
             ->whereHas('order', fn ($o) => $o->where('status', 'lunas'))
             ->whereNotNull('harga_tm420')->sum(DB::raw('qty * (harga_tm420 - harga_diferd)'));
 

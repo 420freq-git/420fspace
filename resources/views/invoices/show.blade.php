@@ -120,13 +120,13 @@
                                     <div class="text-sand-700 tnum">{{ $o->nomor_pesanan }}</div>
                                     <div class="mt-0.5 space-y-0.5">
                                         @foreach ($o->items as $it)
-                                            <div class="text-xs text-sand-500">{{ $it->product->nama_artikel }} <span class="text-sand-400">· {{ $it->ukuran->value }} × {{ $it->qty }}</span></div>
+                                            <div class="text-xs text-sand-500">{{ $it->product->nama_artikel }} <span class="text-sand-400">· {{ $it->ukuran->value }} × {{ $it->qty }}</span>@if ($it->isDariBatchCash()) <span class="text-amber-600">· batch cash, sudah dibayar — tidak ditagih</span>@endif</div>
                                         @endforeach
                                     </div>
                                 </td>
                                 <td class="px-5 py-3 text-sand-600 tnum">{{ $o->tanggal_pesanan->format('d/m/Y') }}</td>
                                 <td class="px-5 py-3 text-sand-600">{{ $o->marketplace->label() }}</td>
-                                <td class="px-5 py-3 text-center tnum text-sand-700">{{ $o->total_qty }}</td>
+                                <td class="px-5 py-3 text-center tnum text-sand-700">{{ $o->qty_tagih }}</td>
                                 <td class="px-5 py-3 text-right tnum text-sand-800">{{ $fmt($o->nilai_tm) }}</td>
                             </tr>
                         @endforeach

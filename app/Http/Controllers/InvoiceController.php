@@ -18,7 +18,7 @@ class InvoiceController extends Controller
         $user = $request->user();
         $brandId = (in_array($user->role, [Role::Tm420, Role::Voojah], true) && $user->brand_id) ? $user->brand_id : null;
 
-        $invoices = Invoice::with(['brand', 'orders.items'])
+        $invoices = Invoice::with(['brand', 'orders.items.batch'])
             ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))
             ->latest('tanggal_terbit')->latest('id')->get();
 
@@ -76,7 +76,7 @@ class InvoiceController extends Controller
         $this->authorizeView($request, $invoice);
 
         return view('invoices.show', [
-            'invoice' => $invoice->load(['brand', 'orders.items.product']),
+            'invoice' => $invoice->load(['brand', 'orders.items.product', 'orders.items.batch']),
             'isAdmin' => $request->user()->isAdmin(),
             'rincianBuyout' => $this->rincianBuyout($invoice),
         ]);
@@ -104,7 +104,7 @@ class InvoiceController extends Controller
         $this->authorizeView($request, $invoice);
 
         $pdf = Pdf::loadView('invoices.pdf', [
-            'invoice' => $invoice->load(['brand', 'orders.items.product']),
+            'invoice' => $invoice->load(['brand', 'orders.items.product', 'orders.items.batch']),
             'rincianBuyout' => $this->rincianBuyout($invoice),
         ])->setPaper('a4', 'portrait');
 
@@ -118,7 +118,7 @@ class InvoiceController extends Controller
         }
 
         $data = $request->validate(['tanggal_bayar' => ['required', 'date']]);
-        $invoice->load('orders.items');
+        $invoice->load('orders.items.batch');
         $total = $invoice->total;
 
         $invoice->update(['status' => 'lunas', 'tanggal_bayar' => $data['tanggal_bayar']]);
