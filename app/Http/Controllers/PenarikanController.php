@@ -31,11 +31,64 @@ class PenarikanController extends Controller
             ];
         }
 
-        return view('penarikan.index', array_merge($saldo, [
+        return view('penarikan.index', array_merge($saldo, $this->rincianHak(), [
             'riwayat' => $riwayat,
             'rencana' => $rencana,
             'isAdmin' => $request->user()->isAdmin(),
         ]));
+    }
+
+    /**
+     * Rincian hak Diferd per BRAND, dengan daftar ARTIKEL di dalamnya.
+     *
+     * Sumber sama persis dengan hakGlobal()/hakDibayar() supaya total cocok dengan kartu saldo:
+     * - hak artikel  = Sale sold+consignment (qty × harga_diferd), dikelompokkan per produk;
+     * - buy-out      = VendorLedger 'buyout' per brand (tingkat batch, tak punya artikel);
+     * - dibayar      = VendorLedger 'pembayaran' per brand (manual + hasil pembekuan penarikan).
+     *
+     * "Dibayar/sisa" sengaja HANYA per brand, tidak per artikel: penarikan dibekukan FIFO sampai
+     * tingkat batch saja, jadi pembagian per artikel tidak punya dasar data (akan jadi angka karangan).
+     */
+    private function rincianHak(): array
+    {
+        $artikel = Sale::sold()->consignment()
+            ->select('brand_id', 'product_id')
+            ->selectRaw('SUM(qty) as pcs, SUM(qty * harga_diferd) as hak')
+            ->groupBy('brand_id', 'product_id')
+            ->with(['brand:id,nama', 'product:id,nama_artikel,sku_induk'])
+            ->get();
+
+        $buyout = VendorLedger::where('tipe', 'buyout')
+            ->selectRaw('brand_id, SUM(jumlah) as total')->groupBy('brand_id')->pluck('total', 'brand_id');
+        $dibayar = VendorLedger::where('tipe', 'pembayaran')
+            ->selectRaw('brand_id, SUM(jumlah) as total')->groupBy('brand_id')->pluck('total', 'brand_id');
+
+        $brandIds = $artikel->pluck('brand_id')->merge($buyout->keys())->merge($dibayar->keys())->unique();
+        $brands = \App\Models\Brand::whereIn('id', $brandIds)->orderBy('nama')->get(['id', 'nama']);
+
+        $perBrand = $brands->map(function ($b) use ($artikel, $buyout, $dibayar) {
+            $items = $artikel->where('brand_id', $b->id)->sortByDesc('hak')->values();
+            $hakJual = (int) $items->sum('hak');
+            $bo = (int) ($buyout[$b->id] ?? 0);
+            $bayar = (int) ($dibayar[$b->id] ?? 0);
+
+            return [
+                'nama' => $b->nama,
+                'artikel' => $items,
+                'pcs' => (int) $items->sum('pcs'),
+                'hak_jual' => $hakJual,
+                'buyout' => $bo,
+                'hak' => $hakJual + $bo,
+                'dibayar' => $bayar,
+                'sisa' => $hakJual + $bo - $bayar,
+            ];
+        })->filter(fn ($r) => $r['hak'] !== 0 || $r['dibayar'] !== 0)->values();
+
+        return [
+            'rincianBrand' => $perBrand,
+            // Penarikan cair yang tak terserap batch mana pun → tak punya brand.
+            'belumTeralokasi' => $this->settlement->penarikanBelumTeralokasi(),
+        ];
     }
 
     /** Diferd (atau admin) mengajukan penarikan. */

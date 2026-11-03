@@ -56,4 +56,37 @@ class PenarikanTest extends ErpTestCase
         $m->setAccessible(true);
         $this->assertSame(600000, $m->invoke($pc)['hak']);
     }
+
+    public function test_rincian_hak_per_brand_artikel_cocok_dengan_saldo(): void
+    {
+        $bTm = $this->batchAktif($this->produkTm, ['M' => 5]);
+        $this->produksiTerima($bTm);
+        $this->jual($this->produkTm, 'M', 3);      // TM / Kaos TM: 3 × 60.000 = 180.000
+
+        $bVj = $this->batchAktif($this->produkVoojah, ['M' => 5]);
+        $this->produksiTerima($bVj);
+        $this->jual($this->produkVoojah, 'M', 2);  // VOOJAH / Kaos VOOJAH: 2 × 60.000 = 120.000
+
+        // Tarik 200.000 → FIFO: batch TM (tertua) 180.000, batch VOOJAH 20.000.
+        $pc = app(PenarikanController::class);
+        $pc->store($this->req($this->diferd, ['jumlah' => 200000]));
+        $pc->approve($this->req($this->admin), Penarikan::latest('id')->first());
+
+        $rincian = (new \ReflectionMethod($pc, 'rincianHak'))->invoke($pc)['rincianBrand']->keyBy('nama');
+        $saldo = (new \ReflectionMethod($pc, 'saldo'))->invoke($pc);
+
+        $this->assertSame(180000, $rincian['TM420']['hak']);
+        $this->assertSame(180000, $rincian['TM420']['dibayar']);
+        $this->assertSame(0, $rincian['TM420']['sisa']);
+        $this->assertSame(3, (int) $rincian['TM420']['artikel']->first()->pcs);
+        $this->assertSame($this->produkTm->id, $rincian['TM420']['artikel']->first()->product_id);
+
+        $this->assertSame(120000, $rincian['VOOJAH']['hak']);
+        $this->assertSame(20000, $rincian['VOOJAH']['dibayar']);
+        $this->assertSame(100000, $rincian['VOOJAH']['sisa']);
+
+        // Total rincian harus sama dengan kartu saldo (angka kunci konsisten).
+        $this->assertSame($saldo['hak'], $rincian->sum('hak'));
+        $this->assertSame($saldo['dibayar'], $rincian->sum('dibayar'));
+    }
 }
