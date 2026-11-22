@@ -64,6 +64,17 @@
             </div>
         @endif
 
+        {{-- Koreksi salah tandai lunas (admin) --}}
+        @if ($isAdmin && $invoice->isLunas())
+            <div class="rounded-xl border border-red-200 bg-white shadow-sm p-5 flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-sand-600">Salah tandai lunas? Kembalikan ke <b>belum dibayar</b> — penerimaan {{ $fmt($invoice->total) }} ikut dihapus dari Cashflow.</p>
+                <form method="POST" action="{{ route('invoices.unpaid', $invoice) }}" onsubmit="return confirm('Batalkan status lunas {{ $invoice->nomor }}? Penerimaan di Cashflow akan dihapus.')">
+                    @csrf @method('PATCH')
+                    <button type="submit" class="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Batalkan lunas</button>
+                </form>
+            </div>
+        @endif
+
         {{-- Bukti transfer — TM unggah sebagai konfirmasi pembayaran; semua yang bisa lihat invoice bisa membukanya --}}
         <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5" x-data="{ open: false }">
             <div class="flex flex-wrap items-center justify-between gap-3">

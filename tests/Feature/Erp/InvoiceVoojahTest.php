@@ -67,4 +67,30 @@ class InvoiceVoojahTest extends ErpTestCase
         $this->assertSame('lunas', $inv->fresh()->status);
         $this->assertSame(0, $this->settlement()->tagihanBrand($this->brandVoojah->id)['sisa']);
     }
+
+    public function test_batalkan_lunas_mengembalikan_tagihan_dan_menghapus_penerimaan(): void
+    {
+        $batch = $this->batchAktif($this->produkVoojah, ['M' => 10]);
+        $this->produksiTerima($batch);
+        $this->jual($this->produkVoojah, 'M', 3);
+
+        $ic = app(\App\Http\Controllers\InvoiceController::class);
+        $ic->generate();
+        $inv = Invoice::where('brand_id', $this->brandVoojah->id)->latest('id')->firstOrFail();
+        $ic->markPaid($this->req($this->admin, ['tanggal_bayar' => now()->toDateString()], 'PATCH'), $inv);
+        $this->assertSame(1, \App\Models\BrandLedger::where('keterangan', 'Pembayaran invoice '.$inv->nomor)->count());
+
+        $ic->markUnpaid($inv->fresh());
+
+        $inv->refresh();
+        $this->assertSame('belum_bayar', $inv->status);
+        $this->assertNull($inv->tanggal_bayar);
+        $this->assertSame(0, \App\Models\BrandLedger::where('keterangan', 'Pembayaran invoice '.$inv->nomor)->count());
+        $this->assertSame(180000, $this->settlement()->tagihanBrand($this->brandVoojah->id)['sisa']);
+        $this->assertSame($inv->id, \App\Models\Order::first()->invoice_id, 'pesanan tetap terikat ke invoice');
+
+        // Bisa ditandai lunas lagi tanpa dobel penerimaan.
+        $ic->markPaid($this->req($this->admin, ['tanggal_bayar' => now()->toDateString()], 'PATCH'), $inv);
+        $this->assertSame(1, \App\Models\BrandLedger::where('keterangan', 'Pembayaran invoice '.$inv->nomor)->count());
+    }
 }

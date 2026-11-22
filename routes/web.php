@@ -153,6 +153,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:420f')->group(function () {
         Route::post('invoices/generate', [InvoiceController::class, 'generate'])->name('invoices.generate');
         Route::patch('invoices/{invoice}/paid', [InvoiceController::class, 'markPaid'])->name('invoices.paid');
+        Route::patch('invoices/{invoice}/unpaid', [InvoiceController::class, 'markUnpaid'])->name('invoices.unpaid');
         Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
     });
 
