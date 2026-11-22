@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\Order;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class InvoiceController extends Controller
@@ -18,7 +19,7 @@ class InvoiceController extends Controller
         $user = $request->user();
         $brandId = (in_array($user->role, [Role::Tm420, Role::Voojah], true) && $user->brand_id) ? $user->brand_id : null;
 
-        $invoices = Invoice::with(['brand', 'orders.items'])
+        $invoices = Invoice::with(['brand', 'orders.items.batch'])
             ->when($brandId, fn ($q) => $q->where('brand_id', $brandId))
             ->latest('tanggal_terbit')->latest('id')->get();
 
@@ -76,7 +77,7 @@ class InvoiceController extends Controller
         $this->authorizeView($request, $invoice);
 
         return view('invoices.show', [
-            'invoice' => $invoice->load(['brand', 'orders.items.product']),
+            'invoice' => $invoice->load(['brand', 'orders.items.product', 'orders.items.batch']),
             'isAdmin' => $request->user()->isAdmin(),
             'rincianBuyout' => $this->rincianBuyout($invoice),
         ]);
@@ -104,7 +105,7 @@ class InvoiceController extends Controller
         $this->authorizeView($request, $invoice);
 
         $pdf = Pdf::loadView('invoices.pdf', [
-            'invoice' => $invoice->load(['brand', 'orders.items.product']),
+            'invoice' => $invoice->load(['brand', 'orders.items.product', 'orders.items.batch']),
             'rincianBuyout' => $this->rincianBuyout($invoice),
         ])->setPaper('a4', 'portrait');
 
@@ -118,7 +119,7 @@ class InvoiceController extends Controller
         }
 
         $data = $request->validate(['tanggal_bayar' => ['required', 'date']]);
-        $invoice->load('orders.items');
+        $invoice->load('orders.items.batch');
         $total = $invoice->total;
 
         $invoice->update(['status' => 'lunas', 'tanggal_bayar' => $data['tanggal_bayar']]);
@@ -136,6 +137,34 @@ class InvoiceController extends Controller
         }
 
         return back()->with('success', 'Invoice '.$invoice->nomor.' ditandai lunas & penerimaan dicatat di cashflow.');
+    }
+
+    /**
+     * Koreksi salah input: invoice yang terlanjur ditandai lunas dikembalikan ke belum_bayar.
+     * Penerimaan yang dicatat markPaid ('Pembayaran invoice {nomor}') dihapus agar Cashflow, Saldo
+     * & Rekonsiliasi ikut kembali. Batch cash yang jadi cash_dibayar karena invoice ini dibuka lagi
+     * (reconcileCashLunas satu arah, jadi harus dibalik di sini). Bukti transfer dibiarkan.
+     */
+    public function markUnpaid(Invoice $invoice)
+    {
+        if ($invoice->status !== 'lunas') {
+            return back()->with('error', 'Invoice belum lunas, tak ada yang dibatalkan.');
+        }
+
+        DB::transaction(function () use ($invoice) {
+            BrandLedger::where('brand_id', $invoice->brand_id)
+                ->where('keterangan', 'Pembayaran invoice '.$invoice->nomor)
+                ->get()
+                ->each->delete();   // per-model supaya terekam di audit log
+
+            $invoice->update(['status' => 'belum_bayar', 'tanggal_bayar' => null]);
+
+            if ($invoice->isCash() && $invoice->batch && $invoice->batch->cash_dibayar) {
+                $invoice->batch->update(['cash_dibayar' => false, 'tgl_cash' => null]);
+            }
+        });
+
+        return back()->with('success', 'Status lunas invoice '.$invoice->nomor.' dibatalkan; penerimaan dihapus dari cashflow.');
     }
 
     /** TM (atau 420F) unggah bukti transfer pembayaran invoice. */

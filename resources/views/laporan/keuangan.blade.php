@@ -7,7 +7,7 @@
         <div class="flex items-center justify-between gap-4">
             <div>
                 <h1 class="text-lg font-semibold text-sand-900">Laporan Keuangan Bulanan</h1>
-                <p class="text-xs text-sand-500">Ringkasan nilai per bulan (12 bulan terakhir).</p>
+                <p class="text-xs text-sand-500">Ringkasan nilai per bulan (12 bulan terakhir). Penjualan dari batch cash tidak dihitung di sini — sudah dibayar lewat invoice cash.</p>
             </div>
             <a href="{{ route('laporan.keuangan.pdf') }}" target="_blank" class="inline-flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m0 0l-2.25-2.25M12 16.5l2.25-2.25M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
@@ -26,7 +26,7 @@
                 <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-5"><p class="text-sm text-sand-500">Hak Diferd</p><p class="mt-1 text-2xl font-semibold text-sand-900 tnum">{{ $fmt($totals['hak_diferd']) }}</p><p class="mt-1 text-xs text-sand-400">nilai barang terjual × harga Diferd</p></div>
             @endif
             @if ($showFee)
-                <div class="rounded-xl border border-brand-200 bg-brand-50 shadow-sm p-5"><p class="text-sm text-brand-700">Fee 420F</p><p class="mt-1 text-2xl font-semibold text-brand-700 tnum">{{ $fmt($totals['fee']) }}</p></div>
+                <div class="rounded-xl border border-brand-200 bg-brand-50 shadow-sm p-5"><p class="text-sm text-brand-700">Fee 420F</p><p class="mt-1 text-2xl font-semibold text-brand-700 tnum">{{ $fmt($totals['fee']) }}</p><p class="mt-1 text-xs text-brand-600">jual {{ $fmt($totals['fee_jual']) }} · cash &amp; buy-out {{ $fmt($totals['fee_cash_buyout']) }}</p></div>
             @endif
         </div>
 
@@ -39,17 +39,18 @@
                             <th class="px-5 py-3 font-semibold text-center">Unit</th>
                             @if ($showTm)<th class="px-5 py-3 font-semibold text-right">Nilai {{ $labelJual }}</th>@endif
                             @if ($showDiferd)<th class="px-5 py-3 font-semibold text-right">Hak Diferd</th>@endif
-                            @if ($showFee)<th class="px-5 py-3 font-semibold text-right">Fee 420F</th>@endif
+                            @if ($showFee)<th class="px-5 py-3 font-semibold text-right">Fee jual</th><th class="px-5 py-3 font-semibold text-right">Fee cash &amp; buy-out</th><th class="px-5 py-3 font-semibold text-right">Fee 420F</th>@endif
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-sand-100">
                         @foreach ($rows as $r)
-                            <tr class="hover:bg-sand-50/50 {{ $r['unit'] === 0 ? 'text-sand-400' : '' }}">
-                                <td class="px-5 py-3 {{ $r['unit'] > 0 ? 'font-medium text-sand-800' : '' }}">{{ $r['bulan']->translatedFormat('M Y') }}</td>
+                            @php $kosong = $r['unit'] === 0 && $r['fee'] === 0; @endphp
+                            <tr class="hover:bg-sand-50/50 {{ $kosong ? 'text-sand-400' : '' }}">
+                                <td class="px-5 py-3 {{ ! $kosong ? 'font-medium text-sand-800' : '' }}">{{ $r['bulan']->translatedFormat('M Y') }}</td>
                                 <td class="px-5 py-3 text-center tnum">{{ number_format($r['unit'], 0, ',', '.') }}</td>
                                 @if ($showTm)<td class="px-5 py-3 text-right tnum">{{ $fmt($r['nilai_tm']) }}</td>@endif
                                 @if ($showDiferd)<td class="px-5 py-3 text-right tnum">{{ $fmt($r['hak_diferd']) }}</td>@endif
-                                @if ($showFee)<td class="px-5 py-3 text-right tnum {{ $r['unit'] > 0 ? 'text-brand-700' : '' }}">{{ $fmt($r['fee']) }}</td>@endif
+                                @if ($showFee)<td class="px-5 py-3 text-right tnum">{{ $fmt($r['fee_jual']) }}</td><td class="px-5 py-3 text-right tnum">{{ $fmt($r['fee_cash_buyout']) }}</td><td class="px-5 py-3 text-right tnum {{ ! $kosong ? 'text-brand-700' : '' }}">{{ $fmt($r['fee']) }}</td>@endif
                             </tr>
                         @endforeach
                     </tbody>
@@ -59,7 +60,7 @@
                             <td class="px-5 py-3 text-center tnum">{{ number_format($totals['unit'], 0, ',', '.') }}</td>
                             @if ($showTm)<td class="px-5 py-3 text-right tnum">{{ $fmt($totals['nilai_tm']) }}</td>@endif
                             @if ($showDiferd)<td class="px-5 py-3 text-right tnum">{{ $fmt($totals['hak_diferd']) }}</td>@endif
-                            @if ($showFee)<td class="px-5 py-3 text-right tnum text-brand-700">{{ $fmt($totals['fee']) }}</td>@endif
+                            @if ($showFee)<td class="px-5 py-3 text-right tnum">{{ $fmt($totals['fee_jual']) }}</td><td class="px-5 py-3 text-right tnum">{{ $fmt($totals['fee_cash_buyout']) }}</td><td class="px-5 py-3 text-right tnum text-brand-700">{{ $fmt($totals['fee']) }}</td>@endif
                         </tr>
                     </tfoot>
                 </table>

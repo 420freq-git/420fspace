@@ -20,7 +20,7 @@
             <td style="width:{{ $cardW }}%"><div class="lbl">Unit terjual (12 bln)</div><div class="val">{{ number_format($totals['unit'], 0, ',', '.') }}</div></td>
             @if ($showTm)<td style="width:{{ $cardW }}%"><div class="lbl">Nilai jual ({{ $labelJual }})</div><div class="val">{{ $fmt($totals['nilai_tm']) }}</div></td>@endif
             @if ($showDiferd)<td style="width:{{ $cardW }}%"><div class="lbl">Hak Diferd</div><div class="val">{{ $fmt($totals['hak_diferd']) }}</div></td>@endif
-            @if ($showFee)<td style="width:{{ $cardW }}%"><div class="lbl">Fee 420F</div><div class="val g">{{ $fmt($totals['fee']) }}</div></td>@endif
+            @if ($showFee)<td style="width:{{ $cardW }}%"><div class="lbl">Fee 420F</div><div class="val g">{{ $fmt($totals['fee']) }}</div><div class="lbl">jual {{ $fmt($totals['fee_jual']) }} · cash &amp; buy-out {{ $fmt($totals['fee_cash_buyout']) }}</div></td>@endif
         </tr>
     </table>
 
@@ -31,7 +31,7 @@
                 <th>Bulan</th><th class="c" style="width:12%">Unit</th>
                 @if ($showTm)<th class="r" style="width:22%">Nilai {{ $labelJual }}</th>@endif
                 @if ($showDiferd)<th class="r" style="width:22%">Hak Diferd</th>@endif
-                @if ($showFee)<th class="r" style="width:22%">Fee 420F</th>@endif
+                @if ($showFee)<th class="r">Fee jual</th><th class="r">Fee cash &amp; buy-out</th><th class="r">Fee 420F</th>@endif
             </tr>
         </thead>
         <tbody>
@@ -41,7 +41,7 @@
                     <td class="c">{{ number_format($r['unit'], 0, ',', '.') }}</td>
                     @if ($showTm)<td class="r">{{ $fmt($r['nilai_tm']) }}</td>@endif
                     @if ($showDiferd)<td class="r">{{ $fmt($r['hak_diferd']) }}</td>@endif
-                    @if ($showFee)<td class="r">{{ $fmt($r['fee']) }}</td>@endif
+                    @if ($showFee)<td class="r">{{ $fmt($r['fee_jual']) }}</td><td class="r">{{ $fmt($r['fee_cash_buyout']) }}</td><td class="r">{{ $fmt($r['fee']) }}</td>@endif
                 </tr>
             @endforeach
         </tbody>
@@ -51,7 +51,7 @@
                 <td class="c">{{ number_format($totals['unit'], 0, ',', '.') }}</td>
                 @if ($showTm)<td class="r">{{ $fmt($totals['nilai_tm']) }}</td>@endif
                 @if ($showDiferd)<td class="r">{{ $fmt($totals['hak_diferd']) }}</td>@endif
-                @if ($showFee)<td class="r g">{{ $fmt($totals['fee']) }}</td>@endif
+                @if ($showFee)<td class="r">{{ $fmt($totals['fee_jual']) }}</td><td class="r">{{ $fmt($totals['fee_cash_buyout']) }}</td><td class="r g">{{ $fmt($totals['fee']) }}</td>@endif
             </tr>
         </tfoot>
     </table>

@@ -33,7 +33,9 @@ use Illuminate\Support\Carbon;
  * VOOJAH yang terjual tidak akan pernah terbayar — persis celah yang dulu
  * terjadi. Tagihannya tetap beda per brand (TM ber-markup, VOOJAH di harga
  * Diferd / fee 420F = 0); pembedaan itu ditangani importer, bukan di sini.
- * Tarik-ulang aman karena importer men-dedup per nomor pesanan.
+ * Tarik-ulang aman karena importer men-dedup per (nomor asli marketplace, brand) —
+ * termasuk pesanan yang dulu tercatat TM-saja lalu terbaca campur TM+VOOJAH
+ * (lihat MarketplaceImportService::createOrder).
  *
  * SKU yang tidak dikenali TIDAK dibuang diam-diam; ia dilaporkan supaya artikel
  * yang belum dipetakan kelihatan, bukan menghilang dari tagihan.

@@ -168,9 +168,35 @@ class MarketplaceImportService
 
         foreach ($perBrand as $brandLines) {
             $brand = $brandLines[0]['size']->product->brand;
+
+            // Dedup per (nomor ASLI marketplace, brand) — bukan per nomor jadi. Nomor jadi bisa
+            // berubah antar-impor: pesanan yang dulu tercatat TM-saja ('123', baris VOOJAH dilewati)
+            // jadi pesanan campur ('123-TM' + '123-VJ') begitu VOOJAH ikut terbaca. Cek nomor persis
+            // tidak menemukan '123' saat mencari '123-TM' → barang TM yang sama tercatat dua kali
+            // (stok terpotong 2×, tertagih 2×, hak Diferd 2×). Terjadi nyata di INV.TM.11.26.03.
+            if ($this->sudahAdaUntukBrand($orderId, (int) $brand->id)) {
+                $summary['skip_sudah_ada']++;
+
+                continue;
+            }
+
             $nomor = $multiBrand ? $orderId.'-'.($brand->kode ?: 'B'.$brand->id) : $orderId;
             $this->buatPesanan($nomor, $marketplace, $brandLines, $summary);
         }
+    }
+
+    /**
+     * Apakah pesanan marketplace ini (nomor asli maupun pecahan bersufiks '-KODE') sudah tercatat
+     * untuk brand ini. Brand ikut disaring supaya bagian brand LAIN dari pesanan campur yang baru
+     * terbaca (mis. VOOJAH) tetap dibuat.
+     */
+    private function sudahAdaUntukBrand(string $orderId, int $brandId): bool
+    {
+        $pola = addcslashes($orderId, '\\%_').'-%';
+
+        return Order::where('brand_id', $brandId)
+            ->where(fn ($q) => $q->where('nomor_pesanan', $orderId)->orWhere('nomor_pesanan', 'like', $pola))
+            ->exists();
     }
 
     /** Buat satu pesanan (satu brand) dari baris-baris yang sudah dikelompokkan. */

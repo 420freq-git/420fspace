@@ -77,14 +77,13 @@ class Invoice extends Model
     /** Total tagihan = Σ pesanan (× harga_tm420) + baris manual (buy-out). Butuh eager-load orders.items. */
     public function getTotalAttribute(): int
     {
-        return (int) $this->orders->sum(
-            fn ($o) => $o->items->sum(fn ($s) => $s->qty * ($s->harga_tm420 ?? 0))
-        ) + (int) $this->jumlah_manual;
+        // nilai_tm melewati baris dari batch cash (sudah dibayar lewat invoice cash).
+        return (int) $this->orders->sum(fn ($o) => $o->nilai_tm) + (int) $this->jumlah_manual;
     }
 
     public function getTotalQtyAttribute(): int
     {
-        return (int) $this->orders->sum(fn ($o) => $o->items->sum('qty')) + (int) $this->pcs_manual;
+        return (int) $this->orders->sum(fn ($o) => $o->qty_tagih) + (int) $this->pcs_manual;
     }
 
     public function isLunas(): bool

@@ -49,10 +49,16 @@ class Order extends Model
         return $this->belongsTo(Invoice::class);
     }
 
-    /** Nilai pesanan ke TM420 (Σ baris × harga_tm420). */
+    /** Nilai tagihan pesanan ke brand (Σ baris × harga_tm420), tanpa baris dari batch cash. */
     public function getNilaiTmAttribute(): int
     {
-        return (int) $this->items->sum(fn ($s) => $s->qty * ($s->harga_tm420 ?? 0));
+        return (int) $this->items->sum(fn ($s) => $s->nilai_tagih);
+    }
+
+    /** Qty yang ditagih di invoice (tanpa baris batch cash). */
+    public function getQtyTagihAttribute(): int
+    {
+        return (int) $this->items->sum(fn ($s) => $s->qty_tagih);
     }
 
     /** Baris item (memakai tabel sales sebagai order-line). */
@@ -79,7 +85,10 @@ class Order extends Model
         return $query->where(function ($w) {
             $w->where('status', OrderStatus::Lunas->value)
                 ->orWhereHas('items', fn ($i) => $i->where('kondisi_retur', 'rusak'));
-        });
+        })
+            // Pesanan yang SELURUH barangnya dari batch cash sudah dibayar lewat invoice cash —
+            // jangan diterbitkan lagi di invoice penjualan (dulu: TM tertagih dua kali).
+            ->whereHas('items', fn ($i) => $i->consignment());
     }
 
     public function getTotalQtyAttribute(): int

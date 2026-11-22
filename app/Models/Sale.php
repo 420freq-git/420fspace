@@ -85,6 +85,28 @@ class Sale extends Model
         return $this->belongsTo(Batch::class);
     }
 
+    /**
+     * Baris ini dari batch CASH (beli putus) — sudah dibayar lewat invoice cash, jadi TIDAK boleh
+     * ditagih lagi lewat invoice penjualan. Padanan per-baris dari scopeConsignment().
+     * Muat relasi `batch` lebih dulu (eager load) saat dipakai di daftar.
+     */
+    public function isDariBatchCash(): bool
+    {
+        return $this->batch_id !== null && (bool) $this->batch?->isCash();
+    }
+
+    /** Qty yang ikut ditagih di invoice penjualan (0 untuk baris batch cash). */
+    public function getQtyTagihAttribute(): int
+    {
+        return $this->isDariBatchCash() ? 0 : (int) $this->qty;
+    }
+
+    /** Nilai yang ditagih ke brand untuk baris ini (0 untuk baris batch cash). */
+    public function getNilaiTagihAttribute(): int
+    {
+        return $this->isDariBatchCash() ? 0 : $this->qty * ($this->harga_tm420 ?? 0);
+    }
+
     /** Kewajiban ke vendor untuk baris ini. */
     public function getNilaiDiferdAttribute(): int
     {

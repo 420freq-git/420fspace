@@ -35,12 +35,89 @@
             </div>
         </div>
 
+        {{-- Rincian hak per brand & artikel --}}
+        <div class="rounded-xl border border-sand-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-sand-200">
+                <h2 class="text-sm font-semibold text-sand-800">Rincian hak per brand &amp; artikel</h2>
+                <p class="mt-0.5 text-xs text-sand-500">Hak Diferd dari barang konsinyasi terjual. "Sudah dibayar" &amp; "sisa" hanya per brand — penarikan dibagi ke batch, bukan ke artikel.</p>
+            </div>
+            @if ($rincianBrand->isEmpty())
+                <div class="p-10 text-center text-sand-500">Belum ada barang terjual.</div>
+            @else
+                <div class="divide-y divide-sand-200">
+                    @foreach ($rincianBrand as $r)
+                        <details class="group" open>
+                            <summary class="cursor-pointer list-none px-5 py-4 hover:bg-sand-50/50">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="h-4 w-4 text-sand-400 transition group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                        <span class="font-semibold text-sand-900">{{ $r['nama'] }}</span>
+                                        <span class="text-xs text-sand-400 tnum">{{ $r['artikel']->count() }} artikel · {{ number_format($r['pcs'], 0, ',', '.') }} pcs</span>
+                                    </div>
+                                    <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs tnum">
+                                        <span class="text-sand-500">Hak <span class="font-semibold text-sand-800">{{ $fmt($r['hak']) }}</span></span>
+                                        <span class="text-sand-500">Dibayar <span class="font-semibold text-sand-800">{{ $fmt($r['dibayar']) }}</span></span>
+                                        <span class="{{ $r['sisa'] > 0 ? 'text-amber-700' : 'text-sand-500' }}">Sisa <span class="font-semibold">{{ $fmt($r['sisa']) }}</span></span>
+                                    </div>
+                                </div>
+                            </summary>
+                            <div class="overflow-x-auto px-5 pb-4">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="border-b border-sand-200 text-left text-xs uppercase tracking-wide text-sand-500">
+                                            <th class="py-2 pr-3 font-semibold">Artikel</th>
+                                            <th class="py-2 px-3 font-semibold text-right">Pcs terjual</th>
+                                            <th class="py-2 pl-3 font-semibold text-right">Hak Diferd</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-sand-100">
+                                        @foreach ($r['artikel'] as $a)
+                                            <tr>
+                                                <td class="py-2 pr-3 text-sand-800">
+                                                    {{ $a->product?->nama_artikel ?? 'Produk #'.$a->product_id }}
+                                                    @if ($a->product?->sku_induk)<span class="ml-1 text-xs text-sand-400">{{ $a->product->sku_induk }}</span>@endif
+                                                </td>
+                                                <td class="py-2 px-3 text-right tnum text-sand-600">{{ number_format((int) $a->pcs, 0, ',', '.') }}</td>
+                                                <td class="py-2 pl-3 text-right tnum text-sand-800">{{ $fmt($a->hak) }}</td>
+                                            </tr>
+                                        @endforeach
+                                        @if ($r['buyout'] !== 0)
+                                            <tr>
+                                                <td class="py-2 pr-3 italic text-sand-500">Buy-out sisa stok (per batch)</td>
+                                                <td class="py-2 px-3"></td>
+                                                <td class="py-2 pl-3 text-right tnum text-sand-800">{{ $fmt($r['buyout']) }}</td>
+                                            </tr>
+                                        @endif
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    @endforeach
+                </div>
+                @if ($belumTeralokasi > 0)
+                    <div class="border-t border-sand-200 bg-amber-50 px-5 py-3 text-xs text-amber-700">
+                        {{ $fmt($belumTeralokasi) }} penarikan cair belum terbagi ke batch mana pun, jadi tidak masuk "dibayar" brand mana pun.
+                    </div>
+                @endif
+            @endif
+        </div>
+
         {{-- Ajukan penarikan --}}
         @if ($tersedia > 0)
             <div class="rounded-xl border border-sand-200 bg-white shadow-sm p-6">
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-sand-400 mb-4">{{ $isAdmin ? 'Catat penarikan' : 'Ajukan penarikan' }}</h2>
-                <form method="POST" action="{{ route('penarikan.store') }}" class="grid sm:grid-cols-4 gap-4 items-end">
+                <form method="POST" action="{{ route('penarikan.store') }}" class="grid sm:grid-cols-5 gap-4 items-end">
                     @csrf
+                    <div>
+                        <label class="block text-xs font-medium text-sand-600">Untuk brand</label>
+                        <select name="brand_id" class="mt-1 block w-full rounded-lg border-sand-300 text-sm focus:border-brand-600 focus:ring-brand-600">
+                            <option value="">Semua brand (batch tertua dulu)</option>
+                            @foreach ($pilihanBrand as $id => $b)
+                                <option value="{{ $id }}" @selected(old('brand_id') == $id) @disabled($b['tersedia'] <= 0)>{{ $b['nama'] }} — sisa {{ $fmt(max(0, $b['tersedia'])) }}</option>
+                            @endforeach
+                        </select>
+                        @error('brand_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
                     <div>
                         <label class="block text-xs font-medium text-sand-600">Jumlah</label>
                         <div class="mt-1 relative">
@@ -85,6 +162,7 @@
                                     <td class="px-5 py-3 text-sand-600 tnum">{{ $p->tanggal_ajuan->format('d/m/Y') }}</td>
                                     <td class="px-5 py-3 text-right">
                                         <div class="tnum font-medium text-sand-800">{{ $fmt($p->jumlah) }}</div>
+                                        <div class="text-[11px] {{ $p->brand ? 'text-brand-700' : 'text-sand-400' }}">{{ $p->brand ? 'untuk '.$p->brand->nama : 'semua brand' }}</div>
                                         @if ($p->status === 'disetujui' && $p->alokasi->isNotEmpty())
                                             <div class="mt-1 space-y-0.5 text-[11px] text-sand-400">
                                                 @foreach ($p->alokasi as $a)
@@ -108,6 +186,10 @@
                                     <td class="px-5 py-3 text-sand-500">{{ $p->catatan ?? '—' }}</td>
                                     <td class="px-5 py-3" x-data="{ open: false }">
                                         <div class="flex flex-col items-start gap-1 text-xs">
+                                            @if ($p->status === 'disetujui')
+                                                <a href="{{ route('penarikan.pdf', $p) }}" target="_blank" class="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>PDF bukti bayar</a>
+                                            @endif
                                             @if ($p->bukti_transfer)
                                                 <a href="{{ route('penarikan.bukti', [$p, 'transfer']) }}" class="inline-flex items-center gap-1 text-brand-700 hover:underline">
                                                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>Bukti transfer</a>
@@ -116,7 +198,7 @@
                                                 <a href="{{ route('penarikan.bukti', [$p, 'invoice']) }}" class="inline-flex items-center gap-1 text-brand-700 hover:underline">
                                                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>Invoice</a>
                                             @endif
-                                            @if (! $p->bukti_transfer && ! $p->bukti_invoice)
+                                            @if (! $p->bukti_transfer && ! $p->bukti_invoice && $p->status !== 'disetujui')
                                                 <span class="text-sand-300">belum ada</span>
                                             @endif
                                             {{-- Unggah bukti hanya untuk 420F; Diferd cukup melihat. --}}

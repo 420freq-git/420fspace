@@ -115,6 +115,10 @@ Sekali di awal kerja sama, **GLOBAL** (bukan per batch), bukan hutang. Diselesai
 - **Penarikan** Diferd bersifat **GLOBAL**, tapi saat **disetujui** dibekukan **FIFO** ke batch
   (batch tertua yg haknya belum tertutup dulu) sebagai baris `vendor_ledger` tipe `pembayaran`
   dengan `penarikan_id`. Setelah beku, sisa per batch jadi historis (tak bergeser).
+  **Opsional per brand** (`penarikan.brand_id`, 3 Nov 2026): bila diisi, FIFO hanya ke batch brand
+  itu (`rencanaAlokasi($jumlah, $brandId)`); jumlah dibatasi sisa hak brand, dan approve ditolak bila
+  batch brand tak menyerap penuh. Kosong = global seperti semula. Alasan: pembayaran yang dimaksud
+  untuk VOOJAH dulu terserap batch TM yang lebih tua. Bukti bayar: `penarikan.pdf`.
   `PenarikanController::hakGlobal()` = penjualan konsinyasi + **buyout** (cash dikecualikan).
 
 ### Angka kunci yang HARUS konsisten lintas halaman
@@ -222,7 +226,7 @@ tetap berstatus `aktif` (status ≠ progres produksi).
 - Buy-out = **alur tagihan** (invoice tm420 + hak Diferd diferd), bukan settle seketika; stok keluar.
 - Cash = **beli putus di muka**, dibayar penuh saat disetujui; stok keluar; reject ditanggung Diferd.
 - Deposit = **global**, sekali, diselesaikan di akhir (bukan hutang, bukan per batch).
-- Penarikan **global**, dibekukan **FIFO** ke batch saat disetujui.
+- Penarikan **global** (atau ditujukan ke **satu brand**), dibekukan **FIFO** ke batch saat disetujui.
 - Stok jual berbasis **penerimaan** (bukan produksi); reject/kurang ditanggung vendor.
 - Pengiriman hanya untuk PO bertahap `siap_kirim`; qty ≤ (produced − shipped).
 - Approval batch: **hanya 420F**; TM tak boleh set status batch sendiri.

@@ -68,6 +68,36 @@ class CashTest extends ErpTestCase
         $this->assertSame(0, $hakGlobal);
     }
 
+    /**
+     * Jeda "sudah diterima, invoice cash belum lunas" (pasti terjadi di batch cash ber-DP): stok
+     * batch cash masih di pool jual, jadi penjualan TM bisa teralokasi ke sana. Penjualan itu sudah
+     * dibayar lewat invoice cash — dulu ikut terbit lagi di invoice penjualan (TM tertagih dua kali)
+     * dan penarikan Diferd teralokasi ke batch cash.
+     */
+    public function test_penjualan_batch_cash_belum_lunas_tak_ditagih_lagi_dan_tak_menyerap_penarikan(): void
+    {
+        $cash = $this->batchAktif($this->produkTm, ['M' => 10], 'cash');
+        $this->produksiTerima($cash->fresh());                 // diterima, invoice cash BELUM lunas
+        $orderCash = $this->jual($this->produkTm, 'M', 3);
+        $this->assertSame($cash->id, $orderCash->items()->first()->batch_id, 'prasyarat: penjualan teralokasi ke batch cash');
+
+        $termin = $this->batchAktif($this->produkTm2, ['M' => 5]);
+        $this->produksiTerima($termin);
+        $orderTermin = $this->jual($this->produkTm2, 'M', 2);  // hak 2 × 60.000 = 120.000
+
+        app(\App\Http\Controllers\InvoiceController::class)->generate();
+
+        $this->assertNull($orderCash->fresh()->invoice_id, 'penjualan batch cash tak boleh masuk invoice penjualan');
+        $inv = Invoice::find($orderTermin->fresh()->invoice_id);
+        $this->assertNotNull($inv);
+        $this->assertSame(2 * 70000, $inv->total);
+
+        $rencana = $this->settlement()->rencanaAlokasi(120000);
+        $this->assertArrayNotHasKey($cash->id, $rencana['alokasi'], 'penarikan tak boleh teralokasi ke batch cash');
+        $this->assertSame(120000, $rencana['alokasi'][$termin->id] ?? 0);
+        $this->assertSame(0, $this->settlement()->hakJual($cash->id));
+    }
+
     public function test_reject_di_batch_cash_bikin_kewajiban_ganti_diferd(): void
     {
         $batch = $this->batchAktif($this->produkTm, ['M' => 10], 'cash');

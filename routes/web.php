@@ -153,6 +153,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:420f')->group(function () {
         Route::post('invoices/generate', [InvoiceController::class, 'generate'])->name('invoices.generate');
         Route::patch('invoices/{invoice}/paid', [InvoiceController::class, 'markPaid'])->name('invoices.paid');
+        Route::patch('invoices/{invoice}/unpaid', [InvoiceController::class, 'markUnpaid'])->name('invoices.unpaid');
         Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
     });
 
@@ -180,6 +181,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('penarikan/{penarikan}', [PenarikanController::class, 'destroy'])->name('penarikan.destroy');
         Route::post('penarikan/{penarikan}/bukti', [PenarikanController::class, 'uploadBukti'])->name('penarikan.bukti.upload');
         Route::get('penarikan/{penarikan}/bukti/{jenis}', [PenarikanController::class, 'bukti'])->name('penarikan.bukti');
+        Route::get('penarikan/{penarikan}/pdf', [PenarikanController::class, 'pdf'])->name('penarikan.pdf');
     });
     Route::middleware('role:420f')->group(function () {
         Route::patch('penarikan/{penarikan}/approve', [PenarikanController::class, 'approve'])->name('penarikan.approve');
